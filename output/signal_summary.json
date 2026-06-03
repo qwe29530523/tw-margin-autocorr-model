@@ -1,0 +1,35 @@
+{
+  "generated_at": "2026-06-03T23:26:58.448081+08:00",
+  "data_start": "2012-01-02",
+  "data_end": "2026-06-03",
+  "rows": 3524,
+  "latest": {
+    "date": "2026-06-03",
+    "signal": "NORMAL",
+    "index_close": 46459.16,
+    "index_yoy": 1.1307719578736108,
+    "index_qoq": 0.3535611742923612,
+    "margin_balance_thousand_ntd": 568395323.0,
+    "margin_roc": 0.4788168257624583,
+    "margin_roc_autocorr": 0.5261555499580085,
+    "autocorr_high_threshold": 0.9952197872538535
+  },
+  "signal_counts": {
+    "NORMAL": 3272,
+    "DELEVERAGING_RISK": 198,
+    "HOT_LEVERAGE_MOMENTUM": 54
+  },
+  "parameters": {
+    "start": "2012-01-01",
+    "end": "2026-06-03",
+    "index_yoy_window": 252,
+    "index_qoq_window": 63,
+    "margin_roc_window": 63,
+    "autocorr_window": 126,
+    "threshold_quantile": 0.9
+  },
+  "data_sources": {
+    "taiex": "https://wwwc.twse.com.tw/indicesReport/MI_5MINS_HIST",
+    "margin": "https://wwwc.twse.com.tw/exchangeReport/MI_MARGN"
+  }
+}

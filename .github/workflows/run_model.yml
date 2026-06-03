@@ -1,0 +1,43 @@
+name: Run TW Margin Autocorr Model
+
+on:
+  workflow_dispatch:
+  schedule:
+    # 18:30 Asia/Taipei, Monday through Friday.
+    - cron: "30 10 * * 1-5"
+
+permissions:
+  contents: write
+
+jobs:
+  run-model:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: Run model
+        run: python tw_margin_autocorr_model.py --start 2012-01-01
+
+      - name: Commit output files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add output/tw_margin_autocorr_model.csv output/tw_margin_autocorr_growth.png output/tw_margin_autocorr_signal.png output/signal_summary.json
+          if git diff --cached --quiet; then
+            echo "No output changes to commit."
+          else
+            git commit -m "chore: update TW margin autocorr output"
+            git push
+          fi
