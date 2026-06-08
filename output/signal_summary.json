@@ -1,27 +1,27 @@
 {
-  "generated_at": "2026-06-05T21:37:22.892490+08:00",
+  "generated_at": "2026-06-08T22:34:52.293898+08:00",
   "data_start": "2012-01-02",
-  "data_end": "2026-06-05",
-  "rows": 3526,
+  "data_end": "2026-06-08",
+  "rows": 3527,
   "latest": {
-    "date": "2026-06-05",
+    "date": "2026-06-08",
     "signal": "NORMAL",
-    "index_close": 45070.94,
-    "index_yoy": 1.0815832449668026,
-    "index_qoq": 0.3384913821008797,
-    "margin_balance_thousand_ntd": 566649267.0,
-    "margin_roc": 0.4944598956269335,
-    "margin_roc_autocorr": 0.581565627936126,
-    "autocorr_high_threshold": 0.9952180345482885
+    "index_close": 43502.78,
+    "index_yoy": 1.0199493234066521,
+    "index_qoq": 0.29474332089070265,
+    "margin_balance_thousand_ntd": 551012201.0,
+    "margin_roc": 0.4398636204966242,
+    "margin_roc_autocorr": 0.5973053461497461,
+    "autocorr_high_threshold": 0.9952171581955059
   },
   "signal_counts": {
-    "NORMAL": 3274,
+    "NORMAL": 3275,
     "DELEVERAGING_RISK": 198,
     "HOT_LEVERAGE_MOMENTUM": 54
   },
   "parameters": {
     "start": "2012-01-01",
-    "end": "2026-06-05",
+    "end": "2026-06-08",
     "index_yoy_window": 252,
     "index_qoq_window": 63,
     "margin_roc_window": 63,
