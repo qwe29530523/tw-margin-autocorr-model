@@ -2,9 +2,10 @@ from __future__ import annotations
 
 """Upper-level aggregator for independent macro system outputs.
 
-The aggregator reads adapter summaries for Taiwan local liquidity and global
-oil / inflation pressure, then writes ``macro_system_summary.json``. It does
-not move data folders, merge model internals, or recompute any subsystem.
+The aggregator reads adapter summaries for Taiwan local liquidity and the
+Energy / Oil inflation pressure component, then writes
+``macro_system_summary.json``. It does not move data folders, merge model
+internals, recompute any subsystem, or create a composite inflation score.
 """
 
 from datetime import datetime, timezone

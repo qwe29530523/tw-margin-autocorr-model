@@ -121,7 +121,7 @@ See [docs/verification.md](docs/verification.md).
   - Fallback when `TW_MARGIN_SYSTEM_ROOT` is unset: repo root `output/signal_summary.json`
   - Adapter: `tw_margin_adapter.py`
 
-- Global Oil / Inflation Pressure System
+- Energy / Oil Inflation Pressure Subsystem
   - Root: `OIL_INFLATION_SYSTEM_ROOT`
   - Reads the latest report or processed data under that root.
   - Fallback when `OIL_INFLATION_SYSTEM_ROOT` is unset: repo root `oil_rate_macro_monitor/`
@@ -134,7 +134,23 @@ See [docs/verification.md](docs/verification.md).
     - Final Oil-Rate Macro Regime
   - Fetchers, processors, validation, reports, charts, and tests are Supporting Implementation Layers only.
 
-The Taiwan margin liquidity system and the oil + inflation system are separate systems. Neither adapter depends on the other system's paths. The integration layer reads published outputs from each system; it does not treat data validation, reports, charts, fetchers, processors, or tests as separate macro decision systems.
+`oil_rate_macro_monitor` is not a full inflation index and must not be treated as a complete global inflation pressure score. Its output can only serve as the Energy / Oil component inside a future Inflation Pressure Composite System.
+
+### Inflation Pressure Composite System
+
+A production composite inflation pressure score must be a separate upper-level system that validates multiple components before assigning production weights:
+
+- Energy / Oil
+- Food / Agriculture
+- Shelter / Housing
+- Services / Wage
+- Goods / Supply Chain
+- FX / Import Inflation
+- Inflation Expectations / Rates Transmission
+
+The oil score can be used only as the Energy / Oil component. It cannot directly represent global inflation pressure. Production inflation scoring must wait until each component has its own backtest / validation evidence.
+
+The Taiwan margin liquidity system and the Energy / Oil Inflation Pressure Subsystem are separate systems. Neither adapter depends on the other system's paths. The integration layer reads published outputs from each system; it does not treat data validation, reports, charts, fetchers, processors, or tests as separate macro decision systems.
 
 ### Aggregated Summary
 

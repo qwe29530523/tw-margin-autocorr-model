@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-"""Adapter for the external Global Oil / Inflation Pressure System.
+"""Adapter for the external Energy / Oil Inflation Pressure Subsystem.
 
 This module only reads published outputs from ``OIL_INFLATION_SYSTEM_ROOT``
 or the local fallback ``oil_rate_macro_monitor/``. It does not recompute the
-oil model and does not treat fetchers, processors, validation, reports, charts,
-or tests as separate macro decision systems.
+oil model, does not promote oil output into a full inflation pressure score,
+and does not treat fetchers, processors, validation, reports, charts, or tests
+as separate macro decision systems.
 """
 
 import csv

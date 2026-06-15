@@ -1,6 +1,20 @@
 # Oil Rate Macro Monitor
 
-`oil_rate_macro_monitor` 是 **Global Oil / Inflation Pressure System**。它用來整理原油價格、WTI curve proxy、physical tightness、成品油壓力，以及油價如何傳導到 inflation / rates 的 macro pressure。
+`oil_rate_macro_monitor` 是 **Energy / Oil Inflation Pressure Subsystem**。它用來整理原油價格、WTI curve proxy、physical tightness、成品油壓力，以及油價如何透過 energy channel 傳導到 inflation / rates 的 macro pressure。
+
+這個系統不是完整通膨指數，也不是完整的 global inflation pressure score。oil score 只能代表 inflation pressure composite 裡的 energy / oil component；不能用 oil score 直接代表整體通膨壓力。
+
+上層 **Inflation Pressure Composite System** 至少應包含：
+
+1. Energy / Oil
+2. Food / Agriculture
+3. Shelter / Housing
+4. Services / Wage
+5. Goods / Supply Chain
+6. FX / Import Inflation
+7. Inflation Expectations / Rates Transmission
+
+任何 production inflation score 都必須先對各 component 做 backtest / validation，再決定是否納入正式權重。`oil_rate_macro_monitor` 的 backtest 只能提供 energy / oil component 的 evidence，不會直接建立完整通膨 score。
 
 正式決策架構只能分成以下 5 層：
 
@@ -107,6 +121,8 @@ Final Oil-Rate Macro Regime：
 - `confidence_score`
 - `reasons`
 - `warnings`
+
+這些輸出只屬於 Energy / Oil Inflation Pressure Subsystem。它們可以作為上層 Inflation Pressure Composite System 的 energy component input，但不能單獨代表 global inflation pressure。
 
 ## 測試
 
