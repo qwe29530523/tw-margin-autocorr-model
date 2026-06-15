@@ -72,6 +72,7 @@ def test_backtest_summary_schema_contains_required_fields_and_targets(tmp_path: 
     assert summary["layer_type"] == "Supporting Research Layer"
     assert summary["production_scoring_changed"] is False
     assert summary["input_status"] == "OK"
+    assert summary["unavailable_targets"] == []
     assert summary["results"]
     assert REQUIRED_RESULT_FIELDS.issubset(summary["results"][0])
     target_names = {item["target_name"] for item in summary["results"]}
@@ -127,3 +128,69 @@ def test_missing_legacy_output_path_discovers_processed_oil_and_rates(tmp_path: 
         "wti_forward_return",
         "ten_year_forward_change",
     }
+    unavailable_target_names = {item["target_name"] for item in summary["unavailable_targets"]}
+    assert {
+        "breakeven_inflation_forward_change",
+        "risk_asset_proxy_forward_return",
+    }.issubset(unavailable_target_names)
+
+
+def test_physical_tightness_can_be_derived_from_inventory_refinery_and_exports(tmp_path: Path) -> None:
+    frame = _weekly_frame(rows=40).drop(columns=["oil_physical_tightness"])
+    frame["gasoline_inventory_4w_change"] = [-3 if index % 2 == 0 else 4 for index in range(len(frame))]
+    frame["distillate_inventory_4w_change"] = [-2 if index % 2 == 0 else 3 for index in range(len(frame))]
+    frame["refinery_utilization_4w_change"] = [1 if index % 2 == 0 else -1 for index in range(len(frame))]
+    frame["crude_inventory_4w_change"] = [-5 if index % 3 == 0 else 6 for index in range(len(frame))]
+    frame["crude_exports_4w_change"] = [2 if index % 3 == 0 else -1 for index in range(len(frame))]
+    frame["total_inventory_proxy_4w_change"] = [8 if index % 2 else -8 for index in range(len(frame))]
+    input_path = _write_weekly_csv(tmp_path, frame)
+
+    summary = run_oil_signal_backtest(
+        input_path=input_path,
+        output_path=tmp_path / "oil_signal_backtest_summary.json",
+        horizons_weeks=[4],
+        min_samples=5,
+    )
+
+    physical_results = [item for item in summary["results"] if item["signal_name"] == "physical_tightness"]
+    assert physical_results
+    assert all(item["missing_data_ratio"] == 0.0 for item in physical_results)
+    assert all(item["sample_count"] > 0 for item in physical_results)
+
+
+def test_feature_diagnostics_separate_physical_and_product_pressure(tmp_path: Path) -> None:
+    frame = _weekly_frame(rows=40).drop(columns=["oil_physical_tightness", "product_inventory_pressure"])
+    frame["crude_inventory_4w_change"] = [-5 if index % 3 == 0 else 6 for index in range(len(frame))]
+    frame["gasoline_inventory_4w_change"] = [-3 if index % 2 == 0 else 4 for index in range(len(frame))]
+    frame["distillate_inventory_4w_change"] = [-2 if index % 2 == 0 else 3 for index in range(len(frame))]
+    frame["total_inventory_proxy_4w_change"] = frame[
+        ["crude_inventory_4w_change", "gasoline_inventory_4w_change", "distillate_inventory_4w_change"]
+    ].sum(axis=1)
+    frame["refinery_utilization_4w_change"] = [1 if index % 2 == 0 else -1 for index in range(len(frame))]
+    frame["crude_exports_4w_change"] = [2 if index % 3 == 0 else -1 for index in range(len(frame))]
+    frame["crude_production_4w_change"] = [1 if index % 4 == 0 else -1 for index in range(len(frame))]
+    frame["product_demand_signal"] = [
+        "product_demand_diesel_led" if index % 2 == 0 else "broad_product_demand_softening"
+        for index in range(len(frame))
+    ]
+    input_path = _write_weekly_csv(tmp_path, frame)
+
+    summary = run_oil_signal_backtest(
+        input_path=input_path,
+        output_path=tmp_path / "oil_signal_backtest_summary.json",
+        horizons_weeks=[4],
+        min_samples=5,
+    )
+
+    diagnostics = {item["signal_name"]: item for item in summary["feature_diagnostics"]}
+    physical = diagnostics["physical_tightness"]
+    product = diagnostics["product_inventory_pressure"]
+    assert physical["duplicate_of"] is None
+    assert product["duplicate_of"] is None
+    assert physical["raw_equals_product_inventory_pressure"] is False
+    assert product["raw_equals_physical_tightness"] is False
+    assert "crude_inventory_4w_change" in physical["source_columns"]
+    assert "crude_exports_4w_change" in physical["source_columns"]
+    assert "gasoline_inventory_4w_change" in product["source_columns"]
+    assert "distillate_inventory_4w_change" in product["source_columns"]
+    assert "product_demand_signal" in product["source_columns"]

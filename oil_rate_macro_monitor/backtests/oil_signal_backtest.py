@@ -15,6 +15,80 @@ DEFAULT_INPUT_PATH = BASE_DIR / "output" / "oil_rate_inflation_weekly_data.csv"
 DEFAULT_OUTPUT_PATH = BASE_DIR / "exports" / "oil_signal_backtest_summary.json"
 DEFAULT_HORIZONS_WEEKS = [4, 8, 13]
 DEFAULT_MIN_SAMPLES = 20
+SIGNAL_METADATA = {
+    "oil_price_momentum": {
+        "feature_role": "oil price direction and momentum",
+        "source_columns": ["oil_momentum_signal", "oil_price_momentum", "wti"],
+    },
+    "oil_price_regime": {
+        "feature_role": "oil price regime label",
+        "source_columns": ["oil_regime", "oil_price_regime"],
+    },
+    "wti_curve_state": {
+        "feature_role": "WTI futures curve tightness",
+        "source_columns": ["wti_curve_state", "curve_state"],
+    },
+    "physical_tightness": {
+        "feature_role": "full physical oil market tightness",
+        "source_columns": [
+            "oil_physical_tightness",
+            "physical_tightness_signal",
+            "crude_inventory_4w_change",
+            "gasoline_inventory_4w_change",
+            "distillate_inventory_4w_change",
+            "total_inventory_proxy_4w_change",
+            "refinery_utilization",
+            "refinery_utilization_4w_change",
+            "crude_exports_4w_change",
+            "crude_production_4w_change",
+            "inventory_signal",
+            "refinery_signal",
+            "supply_signal",
+        ],
+    },
+    "product_inventory_pressure": {
+        "feature_role": "product-side inventory and demand pressure",
+        "source_columns": [
+            "product_inventory_pressure",
+            "gasoline_inventory_4w_change",
+            "distillate_inventory_4w_change",
+            "gasoline_product_supplied_4w_change",
+            "distillate_product_supplied_4w_change",
+            "refinery_utilization",
+            "refinery_utilization_4w_change",
+            "product_demand_signal",
+            "gasoline_crack_20d_change",
+            "diesel_crack_20d_change",
+        ],
+    },
+    "inflation_rates_transmission": {
+        "feature_role": "oil to inflation and rates transmission",
+        "source_columns": ["oil_rate_mix", "macro_regime", "rates_regime", "rate_signal"],
+    },
+    "source_confidence": {
+        "feature_role": "source completeness and missing-data confidence",
+        "source_columns": [
+            "wti",
+            "wti_curve_state",
+            "curve_state",
+            "oil_physical_tightness",
+            "product_inventory_pressure",
+            "macro_regime",
+            "ten_year",
+            "five_year_breakeven",
+        ],
+    },
+}
+TARGET_SPECS = (
+    ("wti_forward_return", ["wti", "wti_close", "wti_price"], "return"),
+    ("ten_year_forward_change", ["ten_year", "ten_year_yield", "DGS10"], "change"),
+    (
+        "breakeven_inflation_forward_change",
+        ["five_year_breakeven", "breakeven_inflation", "five_year_breakeven_inflation", "breakeven_5y", "T5YIE"],
+        "change",
+    ),
+    ("risk_asset_proxy_forward_return", ["risk_asset_proxy", "spx", "spy", "equity_proxy"], "return"),
+)
 
 REQUIRED_RESULT_FIELDS = {
     "signal_name",
@@ -63,7 +137,9 @@ def run_oil_signal_backtest(
 
     weekly = _prepare_weekly_frame(weekly)
     signals = _build_signal_features(weekly)
+    feature_diagnostics = _feature_diagnostics(signals, weekly, min_samples)
     targets = _build_forward_targets(weekly, horizons)
+    unavailable_targets = _unavailable_targets(weekly)
 
     summary = _base_summary(source_path, horizons, "OK")
     summary["input_source"] = input_data["source"]
@@ -73,6 +149,8 @@ def run_oil_signal_backtest(
     summary["date_range"] = _date_range(weekly)
     summary["signal_names"] = list(signals.keys())
     summary["target_names"] = sorted({target["target_name"] for target in targets})
+    summary["unavailable_targets"] = unavailable_targets
+    summary["feature_diagnostics"] = feature_diagnostics
     summary["results"] = [
         _evaluate_signal_target(
             signal_name=signal_name,
@@ -83,6 +161,7 @@ def run_oil_signal_backtest(
         for signal_name, signal in signals.items()
         for target in targets
     ]
+    _apply_feature_diagnostics_to_results(summary["results"], feature_diagnostics)
     if not summary["results"]:
         summary["input_status"] = "INSUFFICIENT_DATA"
         summary["notes"].append("No computable forward targets were found; no production score was changed.")
@@ -104,7 +183,9 @@ def _base_summary(source_path: Path, horizons: list[int], input_status: str) -> 
         "generated_at": datetime.now(UTC).replace(microsecond=0).isoformat(),
         "horizons_weeks": horizons,
         "target_names": [],
+        "unavailable_targets": [],
         "signal_names": [],
+        "feature_diagnostics": [],
         "results": [],
         "notes": [
             "Backtest output is research evidence only and must not be treated as production scoring.",
@@ -179,7 +260,7 @@ def _read_processed_frame(processed_dir: Path, stem: str) -> tuple[Path | None, 
         except Exception:  # noqa: BLE001
             pass
     if csv_path.exists():
-        return csv_path, pd.read_csv(csv_path)
+        return csv_path, pd.read_csv(csv_path, low_memory=False)
     return None, pd.DataFrame()
 
 
@@ -208,16 +289,8 @@ def _build_signal_features(frame: pd.DataFrame) -> dict[str, pd.Series]:
         "oil_price_momentum": _oil_price_momentum_signal(frame),
         "oil_price_regime": _mapped_text_signal(_first_existing(frame, ["oil_regime", "oil_price_regime"]), _oil_regime_score, frame.index),
         "wti_curve_state": _mapped_text_signal(_first_existing(frame, ["wti_curve_state", "curve_state"]), _curve_state_score, frame.index),
-        "physical_tightness": _mapped_text_signal(
-            _first_existing(frame, ["oil_physical_tightness", "physical_tightness_signal"]),
-            _physical_tightness_score,
-            frame.index,
-        ),
-        "product_inventory_pressure": _mapped_text_signal(
-            _first_existing(frame, ["product_inventory_pressure", "inventory_signal"]),
-            _product_inventory_score,
-            frame.index,
-        ),
+        "physical_tightness": _physical_tightness_signal(frame),
+        "product_inventory_pressure": _product_inventory_pressure_signal(frame),
         "inflation_rates_transmission": _mapped_text_signal(
             _first_existing(frame, ["oil_rate_mix", "macro_regime", "rates_regime", "rate_signal"]),
             _inflation_rates_score,
@@ -229,19 +302,9 @@ def _build_signal_features(frame: pd.DataFrame) -> dict[str, pd.Series]:
 
 def _build_forward_targets(frame: pd.DataFrame, horizons: list[int]) -> list[dict[str, Any]]:
     targets: list[dict[str, Any]] = []
-    target_specs = [
-        ("wti_forward_return", ["wti", "wti_close", "wti_price"], "return"),
-        ("ten_year_forward_change", ["ten_year", "ten_year_yield", "DGS10"], "change"),
-        (
-            "breakeven_inflation_forward_change",
-            ["five_year_breakeven", "breakeven_inflation", "five_year_breakeven_inflation", "breakeven_5y", "T5YIE"],
-            "change",
-        ),
-        ("risk_asset_proxy_forward_return", ["risk_asset_proxy", "spx", "spy", "equity_proxy"], "return"),
-    ]
-    for target_name, candidates, method in target_specs:
+    for target_name, candidates, method in TARGET_SPECS:
         series = _numeric_first_existing(frame, candidates)
-        if series is None:
+        if series is None or series.dropna().empty:
             continue
         for horizon in horizons:
             target = _forward_return(series, horizon) if method == "return" else _forward_change(series, horizon)
@@ -255,6 +318,22 @@ def _build_forward_targets(frame: pd.DataFrame, horizons: list[int]) -> list[dic
                 }
             )
     return targets
+
+
+def _unavailable_targets(frame: pd.DataFrame) -> list[dict[str, Any]]:
+    unavailable: list[dict[str, Any]] = []
+    for target_name, candidates, _method in TARGET_SPECS:
+        series = _numeric_first_existing(frame, candidates)
+        if series is not None and not series.dropna().empty:
+            continue
+        unavailable.append(
+            {
+                "target_name": target_name,
+                "reason": "missing_columns_or_all_null",
+                "candidate_columns": candidates,
+            }
+        )
+    return unavailable
 
 
 def _evaluate_signal_target(
@@ -307,6 +386,105 @@ def _oil_price_momentum_signal(frame: pd.DataFrame) -> pd.Series:
     return momentum.apply(lambda value: np.nan if pd.isna(value) else (1.0 if value > 0.05 else -1.0 if value < -0.05 else 0.0))
 
 
+def _physical_tightness_signal(frame: pd.DataFrame) -> pd.Series:
+    existing = _mapped_text_signal(
+        _first_existing(frame, ["oil_physical_tightness", "physical_tightness_signal"]),
+        _physical_tightness_score,
+        frame.index,
+    )
+    if existing.notna().any():
+        return existing
+
+    crude_change = _numeric_column(frame, "crude_inventory_4w_change")
+    gasoline_change = _numeric_column(frame, "gasoline_inventory_4w_change")
+    distillate_change = _numeric_column(frame, "distillate_inventory_4w_change")
+    total_change = _numeric_column(frame, "total_inventory_proxy_4w_change")
+    refinery_change = _numeric_column(frame, "refinery_utilization_4w_change")
+    refinery_level = _numeric_column(frame, "refinery_utilization")
+    exports_change = _numeric_column(frame, "crude_exports_4w_change")
+
+    numeric_inputs = [
+        crude_change,
+        gasoline_change,
+        distillate_change,
+        total_change,
+        refinery_change,
+        refinery_level,
+        exports_change,
+    ]
+    has_numeric_input = pd.concat(numeric_inputs, axis=1).notna().any(axis=1)
+    inventory_text = _normalized_series(frame, "inventory_signal")
+    product_text = _normalized_series(frame, "product_demand_signal")
+    refinery_text = _normalized_series(frame, "refinery_signal")
+    has_text_input = inventory_text.notna() | product_text.notna() | refinery_text.notna()
+    has_input = has_numeric_input | has_text_input
+
+    signal = pd.Series(np.nan, index=frame.index, dtype=float)
+    signal.loc[has_input] = 0.0
+
+    product_draw = (gasoline_change < 0) & (distillate_change < 0)
+    refinery_not_down = (refinery_change >= 0) | (refinery_level >= 90)
+    export_led_draw = (crude_change < 0) & (exports_change > 0)
+    production_tight = (crude_production_change := _numeric_column(frame, "crude_production_4w_change")) < 0
+    inventory_build = (total_change > 0) & ((refinery_change <= 0) | refinery_text.str.contains("SLOW", na=False))
+    text_tight = inventory_text.str.contains("TIGHTENING|CRUDE_TIGHT|PRODUCT_TIGHT|SUPPLY_SHOCK", na=False)
+    text_loose = inventory_text.str.contains("INVENTORY_BUILDING|BUILD", na=False)
+
+    signal.loc[text_loose | inventory_build] = -1.0
+    signal.loc[text_tight | (product_draw & refinery_not_down) | export_led_draw | (production_tight & (total_change < 0))] = 1.0
+    return signal
+
+
+def _product_inventory_pressure_signal(frame: pd.DataFrame) -> pd.Series:
+    existing = _mapped_text_signal(
+        _first_existing(frame, ["product_inventory_pressure"]),
+        _product_inventory_score,
+        frame.index,
+    )
+    if existing.notna().any():
+        return existing
+
+    gasoline_change = _numeric_column(frame, "gasoline_inventory_4w_change")
+    distillate_change = _numeric_column(frame, "distillate_inventory_4w_change")
+    gasoline_supplied_change = _numeric_column(frame, "gasoline_product_supplied_4w_change")
+    distillate_supplied_change = _numeric_column(frame, "distillate_product_supplied_4w_change")
+    refinery_change = _numeric_column(frame, "refinery_utilization_4w_change")
+    refinery_level = _numeric_column(frame, "refinery_utilization")
+    gasoline_crack_change = _numeric_column(frame, "gasoline_crack_20d_change")
+    diesel_crack_change = _numeric_column(frame, "diesel_crack_20d_change")
+    product_text = _normalized_series(frame, "product_demand_signal")
+
+    numeric_inputs = [
+        gasoline_change,
+        distillate_change,
+        gasoline_supplied_change,
+        distillate_supplied_change,
+        refinery_change,
+        refinery_level,
+        gasoline_crack_change,
+        diesel_crack_change,
+    ]
+    has_numeric_input = pd.concat(numeric_inputs, axis=1).notna().any(axis=1)
+    has_text_input = product_text.notna()
+    has_input = has_numeric_input | has_text_input
+
+    signal = pd.Series(np.nan, index=frame.index, dtype=float)
+    signal.loc[has_input] = 0.0
+
+    product_draw = (gasoline_change < 0) & (distillate_change < 0)
+    refinery_not_down = (refinery_change >= 0) | (refinery_level >= 90)
+    product_supplied_strong = (gasoline_supplied_change > 0) | (distillate_supplied_change > 0)
+    crack_strength = (gasoline_crack_change > 0) | (diesel_crack_change > 0)
+    product_build = (gasoline_change > 0) & (distillate_change > 0)
+    product_supplied_weak = (gasoline_supplied_change < 0) & (distillate_supplied_change < 0)
+    text_tight = product_text.str.contains("DIESEL_LED|GASOLINE_LED|DRIVING|INDUSTRIAL|TIGHT", na=False)
+    text_loose = product_text.str.contains("SOFTENING|WEAKENING|WEAK", na=False)
+
+    signal.loc[text_loose | (product_build & (refinery_change <= 0)) | product_supplied_weak] = -1.0
+    signal.loc[text_tight | (product_draw & refinery_not_down) | (product_supplied_strong & crack_strength)] = 1.0
+    return signal
+
+
 def _source_confidence_signal(frame: pd.DataFrame) -> pd.Series:
     source_columns = [
         "wti",
@@ -325,6 +503,126 @@ def _source_confidence_signal(frame: pd.DataFrame) -> pd.Series:
     return missing_ratio.apply(lambda value: 1.0 if value <= 0.25 else -1.0 if value >= 0.5 else 0.0)
 
 
+def _feature_diagnostics(
+    signals: dict[str, pd.Series],
+    frame: pd.DataFrame,
+    min_samples: int,
+) -> list[dict[str, Any]]:
+    diagnostics = []
+    for signal_name, signal in signals.items():
+        non_null_count = int(signal.notna().sum())
+        missing_data_ratio = float(signal.isna().mean()) if len(signal) else 1.0
+        unique_value_count = int(signal.dropna().nunique())
+        metadata = SIGNAL_METADATA.get(signal_name, {})
+        source_columns = list(metadata.get("source_columns", []))
+        diagnostic = {
+            "signal_name": signal_name,
+            "source_columns": source_columns,
+            "available_source_columns": [column for column in source_columns if column in frame.columns],
+            "feature_role": metadata.get("feature_role", "research signal"),
+            "non_null_count": non_null_count,
+            "unique_value_count": unique_value_count,
+            "missing_data_ratio": round(missing_data_ratio, 4),
+            "value_counts": _value_counts(signal),
+            "duplicate_of": None,
+            "usable_for_score": non_null_count >= min_samples and missing_data_ratio <= 0.5 and unique_value_count >= 2,
+            "unusable_reason": None,
+        }
+        if non_null_count < min_samples:
+            diagnostic["usable_for_score"] = False
+            diagnostic["unusable_reason"] = "insufficient_feature_observations"
+        elif missing_data_ratio > 0.5:
+            diagnostic["usable_for_score"] = False
+            diagnostic["unusable_reason"] = "missing_data_ratio_gt_0.5"
+        elif unique_value_count < 2:
+            diagnostic["usable_for_score"] = False
+            diagnostic["unusable_reason"] = "feature_has_less_than_two_values"
+        diagnostics.append(diagnostic)
+
+    by_name = {item["signal_name"]: item for item in diagnostics}
+    for left_name, left_signal in signals.items():
+        for right_name, right_signal in signals.items():
+            if left_name >= right_name:
+                continue
+            stats = _feature_pair_stats(left_signal, right_signal)
+            _attach_pair_stats(by_name[left_name], right_name, stats)
+            _attach_pair_stats(by_name[right_name], left_name, stats)
+            left_diag = by_name[left_name]
+            right_diag = by_name[right_name]
+            duplicate = (
+                (stats["non_null_mask_equal"] and stats["raw_values_equal_on_overlap"])
+                or (
+                    stats["correlation"] is not None
+                    and abs(stats["correlation"]) >= 0.995
+                    and stats["overlap_ratio"] >= 0.95
+                    and _same_non_null_value_set(left_signal, right_signal)
+                )
+            )
+            if duplicate and left_diag.get("usable_for_score") and right_diag.get("usable_for_score"):
+                duplicate_name = right_name
+                by_name[duplicate_name]["duplicate_of"] = left_name
+                by_name[duplicate_name]["usable_for_score"] = False
+                by_name[duplicate_name]["unusable_reason"] = f"duplicate_of:{left_name}"
+    return _clean_json(diagnostics)
+
+
+def _feature_pair_stats(left: pd.Series, right: pd.Series) -> dict[str, Any]:
+    left_mask = left.notna()
+    right_mask = right.notna()
+    overlap_mask = left_mask & right_mask
+    union_count = int((left_mask | right_mask).sum())
+    overlap_count = int(overlap_mask.sum())
+    correlation = None
+    if overlap_count >= 3 and left[overlap_mask].nunique(dropna=True) >= 2 and right[overlap_mask].nunique(dropna=True) >= 2:
+        value = left[overlap_mask].corr(right[overlap_mask])
+        correlation = None if pd.isna(value) else round(float(value), 4)
+    return {
+        "non_null_mask_equal": bool(left_mask.equals(right_mask)),
+        "raw_values_equal_on_overlap": bool((left[overlap_mask] == right[overlap_mask]).all()) if overlap_count else False,
+        "correlation": correlation,
+        "overlap_ratio": round(float(overlap_count / union_count), 4) if union_count else 0.0,
+        "overlap_count": overlap_count,
+    }
+
+
+def _attach_pair_stats(diagnostic: dict[str, Any], other_name: str, stats: dict[str, Any]) -> None:
+    suffix = other_name
+    diagnostic[f"non_null_mask_equals_{suffix}"] = stats["non_null_mask_equal"]
+    diagnostic[f"raw_equals_{suffix}"] = stats["raw_values_equal_on_overlap"]
+    diagnostic[f"correlation_with_{suffix}"] = stats["correlation"]
+    diagnostic[f"overlap_ratio_with_{suffix}"] = stats["overlap_ratio"]
+
+
+def _same_non_null_value_set(left: pd.Series, right: pd.Series) -> bool:
+    left_values = {float(value) for value in left.dropna().unique()}
+    right_values = {float(value) for value in right.dropna().unique()}
+    return left_values == right_values
+
+
+def _apply_feature_diagnostics_to_results(
+    results: list[dict[str, Any]],
+    feature_diagnostics: list[dict[str, Any]],
+) -> None:
+    diagnostics = {item["signal_name"]: item for item in feature_diagnostics}
+    for result in results:
+        diagnostic = diagnostics.get(result["signal_name"], {})
+        result["feature_duplicate_of"] = diagnostic.get("duplicate_of")
+        result["feature_unusable_reason"] = diagnostic.get("unusable_reason")
+        if diagnostic.get("duplicate_of"):
+            result["usable_for_score"] = False
+            result["suggested_direction"] = "DUPLICATE"
+            result["suggested_weight_range"] = {"min": 0.0, "max": 0.0}
+
+
+def _value_counts(signal: pd.Series) -> dict[str, int]:
+    counts = signal.value_counts(dropna=False)
+    result: dict[str, int] = {}
+    for value, count in counts.items():
+        key = "MISSING" if pd.isna(value) else str(value)
+        result[key] = int(count)
+    return result
+
+
 def _first_existing(frame: pd.DataFrame, candidates: list[str]) -> pd.Series | None:
     for column in candidates:
         if column in frame.columns:
@@ -337,6 +635,18 @@ def _numeric_first_existing(frame: pd.DataFrame, candidates: list[str]) -> pd.Se
     if series is None:
         return None
     return pd.to_numeric(series, errors="coerce")
+
+
+def _numeric_column(frame: pd.DataFrame, column: str) -> pd.Series:
+    if column not in frame.columns:
+        return pd.Series(np.nan, index=frame.index, dtype=float)
+    return pd.to_numeric(frame[column], errors="coerce")
+
+
+def _normalized_series(frame: pd.DataFrame, column: str) -> pd.Series:
+    if column not in frame.columns:
+        return pd.Series(pd.NA, index=frame.index, dtype="object")
+    return frame[column].apply(lambda value: None if value is None or pd.isna(value) else _normalize_text(value))
 
 
 def _mapped_text_signal(series: pd.Series | None, mapper, index: pd.Index | None = None) -> pd.Series:
