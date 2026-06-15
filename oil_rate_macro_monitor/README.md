@@ -16,6 +16,8 @@
 
 任何 production inflation score 都必須先對各 component 做 backtest / validation，再決定是否納入正式權重。`oil_rate_macro_monitor` 的 backtest 只能提供 energy / oil component 的 evidence，不會直接建立完整通膨 score。
 
+Phase 2B scoring design spec 已建立於 [docs/oil_scoring_design_spec.md](docs/oil_scoring_design_spec.md)。目前仍沒有 production score；未來 score 必須通過 backtest evidence 與 upstream data availability gates 後才可上線。
+
 正式決策架構只能分成以下 5 層：
 
 1. Oil Price & WTI Curve

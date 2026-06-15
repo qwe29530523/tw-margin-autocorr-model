@@ -22,6 +22,8 @@ The Energy / Oil score can only represent energy inflation pressure. It cannot r
 
 Production inflation scoring must not be created from the oil subsystem alone. Each component needs its own data contract, backtest evidence, validation, missing-data handling, and suggested weight range before a composite production score is introduced.
 
+The Energy / Oil component has a Phase 2B design-only spec at `oil_rate_macro_monitor/docs/oil_scoring_design_spec.md`. That spec does not create production scoring and cannot be promoted into the composite until WTI curve, breakeven, risk asset targets, duplicate diagnostics, and pytest gates pass.
+
 ## Current Status
 
 The current oil backtest layer is a Supporting Research Layer. It can evaluate whether oil-related signals deserve future production use, but it does not create production score weights and does not change any production macro decision logic.
