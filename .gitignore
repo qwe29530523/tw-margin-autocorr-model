@@ -13,6 +13,7 @@ data/**/raw/
 # Local exports and debug outputs
 exports/
 macro_research_system/data/
+macro_research_system/data/outputs/
 output/*debug*.png
 output/*reference_style*.png
 output/*smooth*.png

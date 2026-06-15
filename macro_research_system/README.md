@@ -108,3 +108,39 @@ See [docs/verification.md](docs/verification.md).
 - `macro_integration` reads only A/B/C summary JSON files.
 - `macro_integration` must not read legacy `oil_rates_cpi_summary.json`.
 - `oil_rates_cpi` stays available as legacy; do not delete it or break its existing tests.
+
+## External Integration Layer
+
+`macro_research_system/src/integrations/` is a thin upper-level adapter layer for independently deployed systems. It does not move folders, merge models, copy local data, or recompute any subsystem output.
+
+### Independent Systems
+
+- Taiwan Local Liquidity System
+  - Root: `TW_MARGIN_SYSTEM_ROOT`
+  - Primary output: `output/signal_summary.json`
+  - Fallback when `TW_MARGIN_SYSTEM_ROOT` is unset: repo root `output/signal_summary.json`
+  - Adapter: `tw_margin_adapter.py`
+
+- Global Oil / Inflation Pressure System
+  - Root: `OIL_INFLATION_SYSTEM_ROOT`
+  - Reads the latest report or processed data under that root.
+  - Fallback when `OIL_INFLATION_SYSTEM_ROOT` is unset: repo root `oil_rate_macro_monitor/`
+  - Adapter: `oil_rate_adapter.py`
+
+The Taiwan margin liquidity system and the oil + inflation system are separate systems. Neither adapter depends on the other system's paths.
+
+### Aggregated Summary
+
+`macro_system_aggregator.py` writes:
+
+```text
+macro_research_system/data/outputs/macro_system_summary.json
+```
+
+The output schema is:
+
+- `taiwan_local_liquidity`
+- `global_oil_inflation_pressure`
+- `final_macro_risk_gate`
+
+If either source is unavailable, its adapter returns `status="MISSING"` and the aggregator still writes a summary. This output JSON is ignored by git.
