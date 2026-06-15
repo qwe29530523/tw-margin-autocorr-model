@@ -9,6 +9,8 @@ __pycache__/
 
 data/**/raw/
 **/data/**/raw/
+data/**/raw_local/
+**/data/**/raw_local/
 
 # Local exports and debug outputs
 exports/

@@ -64,9 +64,15 @@ copy .env.example .env
 FRED_API_KEY=
 EIA_API_KEY=
 USE_YAHOO=false
+WTI_CURVE_API_URL=
+WTI_CURVE_API_KEY=
+WTI_CURVE_API_SOURCE=
+WTI_CURVE_API_SOURCE_TYPE=production_api
+WTI_CURVE_API_KEY_HEADER=Authorization
+WTI_CURVE_API_KEY_PREFIX=Bearer
 ```
 
-`FRED_API_KEY` 與 `EIA_API_KEY` 是核心資料源使用。`USE_YAHOO=false` 表示不抓 Yahoo overlay。`.env` 已列入 `.gitignore`，不要 commit。
+`FRED_API_KEY` 與 `EIA_API_KEY` 是核心資料源使用。`USE_YAHOO=false` 表示不抓 Yahoo overlay。WTI curve API 設定只接受正式 API / vendor source，不可填 Yahoo front-month proxy。`.env` 已列入 `.gitignore`，不要 commit。
 
 ## API key
 
@@ -83,7 +89,7 @@ python -m src.main report
 python -m src.main all
 ```
 
-`fetch` 會抓 FRED 與 EIA 到 `data/raw/`，每個 raw 檔案都會帶 timestamp。若 `.env` 設定 `USE_YAHOO=true`，才會另外抓 Yahoo overlay。`process` 會輸出 `oil_engine` 與 `rates_curve` 到 `data/processed/`，優先使用 parquet，如果環境缺少 `pyarrow` 或 parquet engine，會 fallback 成 CSV。`report` 會產出 `data/reports/oil_rate_macro_report_YYYYMMDD.md`。
+`fetch` 會抓 FRED 與 EIA 到 `data/raw/`，每個 raw 檔案都會帶 timestamp。若 WTI curve API 設定完整，會另外抓正式 CL M1/M2/M3 settlement raw cache。若 `.env` 設定 `USE_YAHOO=true`，才會另外抓 Yahoo overlay，但 Yahoo 不可作為 WTI curve source。`process` 會輸出 `oil_engine`、`rates_curve` 與 `oil_curve` 到 `data/processed/`，優先使用 parquet，如果環境缺少 `pyarrow` 或 parquet engine，會 fallback 成 CSV。`report` 會產出 `data/reports/oil_rate_macro_report_YYYYMMDD.md`。
 
 Dashboard：
 
@@ -102,6 +108,23 @@ Yahoo Finance 不屬於核心資料源。若 `USE_YAHOO=true`，程式可以抓 
 免費資料源有延遲、欄位調整、API 限流與序列 ID 改版風險。EIA v2 的部分 series id 可能需要重新確認，如果某個 series 抓不到，程式會 logging 並跳過，不會讓整個流程中斷。
 
 完整期貨曲線資料需要 CME/ICE/Nasdaq Data Link 或其他期貨期限結構資料源。核心 FRED+EIA 模式沒有 futures curve，`curve_state` 會標成 `unknown`，並在 warnings 裡註明。
+
+### WTI futures curve formal API contract
+
+WTI futures curve 必須來自正式 API 或正式資料 vendor，並提供同一天的 CL contract ladder settlement：
+
+```text
+date,cl_m1_settle,cl_m2_settle,cl_m3_settle,source,source_type
+```
+
+正式 `source_type` 使用 `production_api` 或 `production_vendor`。`research_manual` 與 `historical_only` 只保留給研究或歷史匯入，不是主路徑。
+
+必要限制：
+
+- `cl_m1_settle`、`cl_m2_settle`、`cl_m3_settle` 必須是同一天的 M1/M2/M3 settlement。
+- 不可用 Yahoo `CL=F` 或 continuous front-month 代替 M1/M2/M3。
+- 不可用單一 front-month price 推估 M2/M3。
+- 若 API key、endpoint 或任一合約欄位缺失，系統會標記 `missing_wti_curve_upstream`，`curve_state` 維持 `unknown`，不會 fallback 到 Yahoo。
 
 Baker Hughes rig count 第一版先支援手動下載 CSV/XLSX，再用 `load_baker_hughes_rig_count(file_path)` 讀取與標準化。
 

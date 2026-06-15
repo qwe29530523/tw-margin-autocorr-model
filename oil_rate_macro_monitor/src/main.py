@@ -7,9 +7,11 @@ from pandas.errors import EmptyDataError
 
 from src.fetchers.eia_fetcher import fetch_many_eia_series
 from src.fetchers.fred_fetcher import fetch_many_fred_series
+from src.fetchers.wti_curve_fetcher import fetch_wti_curve_api
 from src.fetchers.yahoo_fetcher import fetch_yahoo_prices
 from src.processors.macro_regime_engine import build_macro_summary
 from src.processors.oil_engine import build_oil_frame
+from src.processors.oil_curve import calculate_oil_curve, combine_oil_prices_with_wti_curve
 from src.processors.rates_curve_engine import build_rates_curve_frame
 from src.reports.markdown_report import write_markdown_report
 from src.settings import load_settings
@@ -27,6 +29,18 @@ def fetch() -> None:
     eia = fetch_many_eia_series(api_key=settings.eia_api_key)
     save_raw_frame(fred, settings.raw_dir, "fred")
     save_raw_frame(eia, settings.raw_dir, "eia")
+    wti_curve = fetch_wti_curve_api(
+        api_url=settings.wti_curve_api_url,
+        api_key=settings.wti_curve_api_key,
+        source=settings.wti_curve_api_source,
+        source_type=settings.wti_curve_api_source_type,
+        api_key_header=settings.wti_curve_api_key_header,
+        api_key_prefix=settings.wti_curve_api_key_prefix,
+    )
+    if not wti_curve.empty:
+        save_raw_frame(wti_curve, settings.raw_dir, "wti_curve")
+    else:
+        logger.warning("missing_wti_curve_upstream: no WTI curve raw cache was written.")
     if settings.use_yahoo:
         yahoo = fetch_yahoo_prices()
         save_raw_frame(yahoo, settings.raw_dir, "yahoo")
@@ -39,11 +53,14 @@ def process() -> None:
     ensure_dirs(settings.processed_dir)
     fred = read_frame(latest_file(settings.raw_dir, "fred_*.csv"))
     eia = read_frame(latest_file(settings.raw_dir, "eia_*.csv"))
+    wti_curve_raw = read_frame(latest_file(settings.raw_dir, "wti_curve_*.csv"))
     oil = build_oil_frame(fred, eia)
     rates = build_rates_curve_frame(fred)
+    oil_curve = calculate_oil_curve(combine_oil_prices_with_wti_curve(oil, wti_curve_raw))
 
     save_processed_frame(oil, settings.processed_dir, "oil_engine")
     save_processed_frame(rates, settings.processed_dir, "rates_curve")
+    save_processed_frame(oil_curve, settings.processed_dir, "oil_curve")
 
 
 def report() -> None:

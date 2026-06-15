@@ -265,6 +265,7 @@ def _load_processed_oil_and_rates(system_root: Path) -> pd.DataFrame:
     processed_dir = system_root / "data" / "processed"
     oil_path, oil = _read_processed_frame(processed_dir, "oil_engine")
     rates_path, rates = _read_processed_frame(processed_dir, "rates_curve")
+    oil_curve_path, oil_curve = _read_processed_frame(processed_dir, "oil_curve")
     if oil.empty and rates.empty:
         return pd.DataFrame()
     if oil.empty:
@@ -276,6 +277,17 @@ def _load_processed_oil_and_rates(system_root: Path) -> pd.DataFrame:
     weekly = _to_weekly(merged)
     source_paths = [str(path) for path in [oil_path, rates_path] if path is not None]
     notes: list[str] = []
+    weekly_curve = _oil_curve_for_backtest(oil_curve)
+    if not weekly_curve.empty:
+        weekly = pd.merge(weekly, weekly_curve, on="date", how="outer").sort_values("date").reset_index(drop=True)
+        if oil_curve_path is not None:
+            source_paths.append(str(oil_curve_path))
+        if not _has_usable_wti_curve(weekly_curve):
+            notes.append(
+                "missing_wti_curve_upstream: processed oil_curve exists but contains no usable WTI M1/M2/M3 curve state."
+            )
+    else:
+        notes.append("missing_wti_curve_upstream: processed oil_curve was not found or had no curve rows.")
     risk_path, risk_asset = _load_yahoo_risk_asset_proxy(system_root)
     if not risk_asset.empty:
         weekly = pd.merge(weekly, risk_asset, on="date", how="outer").sort_values("date").reset_index(drop=True)
@@ -287,6 +299,39 @@ def _load_processed_oil_and_rates(system_root: Path) -> pd.DataFrame:
     weekly.attrs["source_paths"] = source_paths
     weekly.attrs["notes"] = notes
     return weekly
+
+
+def _oil_curve_for_backtest(oil_curve: pd.DataFrame) -> pd.DataFrame:
+    if oil_curve.empty or "date" not in oil_curve.columns:
+        return pd.DataFrame()
+    columns = [
+        column
+        for column in [
+            "date",
+            "m1_m2_spread",
+            "m1_m3_spread",
+            "curve_state",
+            "source",
+            "source_type",
+        ]
+        if column in oil_curve.columns
+    ]
+    curve = _to_weekly(oil_curve[columns].copy())
+    if curve.empty:
+        return pd.DataFrame()
+    rename_map = {
+        "curve_state": "wti_curve_state",
+        "source": "wti_curve_source",
+        "source_type": "wti_curve_source_type",
+    }
+    return curve.rename(columns=rename_map)
+
+
+def _has_usable_wti_curve(oil_curve: pd.DataFrame) -> bool:
+    if "wti_curve_state" not in oil_curve.columns:
+        return False
+    states = oil_curve["wti_curve_state"].astype(str).str.upper()
+    return states.notna().any() and (~states.isin({"UNKNOWN", "MISSING", "NAN", ""})).any()
 
 
 def _read_processed_frame(processed_dir: Path, stem: str) -> tuple[Path | None, pd.DataFrame]:

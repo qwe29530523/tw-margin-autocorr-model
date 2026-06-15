@@ -17,7 +17,7 @@
 - inflation / rates transmission
 - source confidence / missing data flags
 
-WTI curve state 若缺資料，會明確標記 missing，不會 forward fill，不會硬補，也不會假造 futures curve。
+WTI curve state 若缺資料，會明確標記 missing，不會 forward fill，不會硬補，也不會假造 futures curve。正式 WTI curve source 必須提供同一天的 `cl_m1_settle`、`cl_m2_settle`、`cl_m3_settle`，並標記 `source_type=production_api` 或 `production_vendor`。Yahoo `CL=F` / continuous front-month 不可作為 M1/M2/M3 curve source。
 
 ## Forward Horizons
 

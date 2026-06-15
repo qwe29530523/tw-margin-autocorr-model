@@ -20,6 +20,12 @@ class Settings:
     fred_api_key: str | None
     eia_api_key: str | None
     use_yahoo: bool
+    wti_curve_api_url: str | None
+    wti_curve_api_key: str | None
+    wti_curve_api_source: str
+    wti_curve_api_source_type: str
+    wti_curve_api_key_header: str
+    wti_curve_api_key_prefix: str
 
 
 def load_settings() -> Settings:
@@ -33,4 +39,10 @@ def load_settings() -> Settings:
         fred_api_key=os.getenv("FRED_API_KEY") or None,
         eia_api_key=os.getenv("EIA_API_KEY") or None,
         use_yahoo=(os.getenv("USE_YAHOO", "false").strip().lower() == "true"),
+        wti_curve_api_url=os.getenv("WTI_CURVE_API_URL") or None,
+        wti_curve_api_key=os.getenv("WTI_CURVE_API_KEY") or None,
+        wti_curve_api_source=os.getenv("WTI_CURVE_API_SOURCE", "wti_curve_api"),
+        wti_curve_api_source_type=os.getenv("WTI_CURVE_API_SOURCE_TYPE", "production_api"),
+        wti_curve_api_key_header=os.getenv("WTI_CURVE_API_KEY_HEADER", "Authorization"),
+        wti_curve_api_key_prefix=os.getenv("WTI_CURVE_API_KEY_PREFIX", "Bearer"),
     )

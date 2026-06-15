@@ -3,6 +3,7 @@ __pycache__/
 .pytest_cache/
 *.pyc
 data/raw/*
+data/raw_local/*
 data/processed/*
 data/reports/*
 !data/raw/.gitkeep
