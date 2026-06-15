@@ -1,0 +1,24 @@
+macro_regimes:
+  inflation_pressure:
+    - oil_20d_return_gt: 0.05
+    - rate_signal_any: [rates_up, curve_bear_steepening]
+    - crack_signal_any: [industrial_logistics_strength]
+    - inventory_signal_any: [inventory_tightening]
+  growth_strength:
+    - oil_20d_return_gt: 0.05
+    - rate_signal_any: [rates_up, curve_bear_steepening]
+    - crack_signal_any: [industrial_logistics_strength, driving_season_strength]
+    - inventory_signal_not: inventory_building
+  stagflation_risk:
+    - oil_20d_return_gt: 0.0
+    - rate_signal_any: [rates_down, curve_bull_steepening]
+    - crack_signal_any: [mixed, demand_weakening]
+    - inventory_signal_any: [inventory_tightening, supply_shock]
+  recession_pressure:
+    - oil_20d_return_lt: -0.05
+    - rate_signal_any: [rates_down, curve_bull_steepening]
+    - crack_signal_any: [demand_weakening]
+    - inventory_signal_any: [inventory_building]
+  supply_shock:
+    - oil_5d_return_gt: 0.05
+    - inventory_signal_any: [inventory_tightening, supply_shock]
