@@ -25,6 +25,43 @@ import requests
 TWSE_INDEX_URL = "https://wwwc.twse.com.tw/indicesReport/MI_5MINS_HIST"
 TWSE_MARGIN_URL = "https://wwwc.twse.com.tw/exchangeReport/MI_MARGN"
 USER_AGENT = "tw-margin-autocorr-model/1.0"
+DATA_QUALITY_COLUMNS = [
+    "date",
+    "taiex_close",
+    "margin_balance",
+    "index_yoy",
+    "index_qoq",
+    "margin_roc",
+    "reason",
+]
+MARKET_EXTREME_COLUMNS = [
+    "date",
+    "taiex_close",
+    "margin_balance",
+    "index_yoy",
+    "index_qoq",
+    "margin_roc",
+    "index_yoy_z",
+    "index_qoq_z",
+    "margin_roc_z",
+    "margin_roc_autocorr",
+    "margin_roc_autocorr_z",
+    "margin_roc_autocorr_percentile",
+    "margin_roc_autocorr_percentile_full_sample",
+    "margin_roc_autocorr_rank_252",
+    "margin_roc_persistence_score",
+    "autocorr_high_threshold",
+    "reason",
+]
+OUTLIER_CONTEXT_COLUMNS = [
+    "outlier_date",
+    "context_date",
+    "taiex_close",
+    "margin_balance",
+    "index_yoy",
+    "index_qoq",
+    "margin_roc",
+]
 
 
 @dataclass(frozen=True)
@@ -233,6 +270,14 @@ def fetch_index_history(start: date, end: date, max_workers: int) -> pd.DataFram
 def parse_margin_payload(payload: dict[str, Any], query_date: pd.Timestamp) -> dict[str, Any] | None:
     if payload.get("stat") != "OK":
         return None
+    payload_date = payload.get("date")
+    if not payload_date:
+        raise ValueError(f"TWSE margin payload missing date for {query_date.date()}")
+    actual_date = pd.Timestamp(datetime.strptime(str(payload_date), "%Y%m%d").date())
+    if actual_date != query_date.normalize():
+        raise ValueError(
+            f"TWSE margin payload date mismatch: requested {query_date.date()}, got {actual_date.date()}"
+        )
     for table in payload.get("tables", []):
         fields = table.get("fields") or []
         rows = table.get("data") or []
@@ -252,6 +297,31 @@ def parse_margin_payload(payload: dict[str, Any], query_date: pd.Timestamp) -> d
                     ),
                 }
     return None
+
+
+def remove_isolated_cached_margin_outliers(cached: pd.DataFrame, jump_threshold: float = 0.20) -> pd.DataFrame:
+    if cached.empty:
+        return cached
+    cached = cached.copy()
+    cached["date"] = pd.to_datetime(cached["date"])
+    cached["margin_balance_thousand_ntd"] = pd.to_numeric(
+        cached["margin_balance_thousand_ntd"], errors="coerce"
+    )
+    cached = cached.dropna(subset=["margin_balance_thousand_ntd"])
+    cached = cached.drop_duplicates(subset=["date"], keep="last").sort_values("date")
+
+    balance = cached["margin_balance_thousand_ntd"]
+    prev_jump = (balance / balance.shift(1) - 1).abs()
+    next_jump = (balance / balance.shift(-1) - 1).abs()
+    isolated_outlier = (prev_jump > jump_threshold) & (next_jump > jump_threshold)
+    if isolated_outlier.any():
+        dates = cached.loc[isolated_outlier, "date"].dt.strftime("%Y-%m-%d").tolist()
+        print(
+            "Dropping isolated cached margin outlier(s) for refetch: "
+            + ", ".join(dates[:20]),
+            flush=True,
+        )
+    return cached.loc[~isolated_outlier].reset_index(drop=True)
 
 
 def fetch_margin_for_date(
@@ -290,7 +360,7 @@ def load_cached_margin(output_csv: Path, force_refresh: bool) -> pd.DataFrame:
     for column in columns:
         if column not in cached.columns:
             cached[column] = math.nan
-    return cached[columns].dropna(subset=["margin_balance_thousand_ntd"])
+    return remove_isolated_cached_margin_outliers(cached[columns])
 
 
 def fetch_margin_history(index_dates: pd.Series, config: ModelConfig, output_csv: Path) -> pd.DataFrame:
@@ -345,6 +415,100 @@ def rolling_lag1_autocorr(series: pd.Series, window: int) -> pd.Series:
     return series.rolling(window=window, min_periods=window).apply(corr, raw=True)
 
 
+def robust_zscore(series: pd.Series, window: int = 756, min_periods: int = 126, clip: float = 3.0) -> pd.Series:
+    median = series.rolling(window, min_periods=min_periods).median()
+    expanding_median = series.expanding(min_periods=2).median()
+    median = median.fillna(expanding_median)
+
+    absolute_deviation = (series - median).abs()
+    mad = absolute_deviation.rolling(window, min_periods=min_periods).median()
+    expanding_mad = absolute_deviation.expanding(min_periods=2).median()
+    mad = mad.fillna(expanding_mad)
+
+    z = 0.6745 * (series - median) / mad.replace(0, np.nan)
+    return z.clip(-clip, clip)
+
+
+def expanding_percentile(series: pd.Series) -> pd.Series:
+    values: list[float] = []
+    percentiles: list[float] = []
+    for value in series:
+        if pd.isna(value):
+            percentiles.append(math.nan)
+            continue
+        numeric_value = float(value)
+        values.append(numeric_value)
+        sample = np.asarray(values)
+        percentiles.append(float((sample <= numeric_value).mean()))
+    return pd.Series(percentiles, index=series.index)
+
+
+def full_sample_percentile(series: pd.Series) -> pd.Series:
+    return series.rank(method="max", pct=True)
+
+
+def rolling_percentile_rank(series: pd.Series, window: int = 252, min_periods: int = 1) -> pd.Series:
+    valid_values: list[float] = []
+    ranks: list[float] = []
+    for value in series:
+        if pd.isna(value):
+            ranks.append(math.nan)
+            continue
+        numeric_value = float(value)
+        valid_values.append(numeric_value)
+        sample = np.asarray(valid_values[-window:])
+        if len(sample) < min_periods:
+            ranks.append(math.nan)
+        else:
+            ranks.append(float((sample <= numeric_value).mean()))
+    return pd.Series(ranks, index=series.index)
+
+
+def margin_roc_persistence_score(
+    margin_roc: pd.Series,
+    margin_roc_z: pd.Series,
+    window: int = 20,
+) -> pd.Series:
+    positive_ratio = (margin_roc > 0).rolling(window, min_periods=window).mean()
+    high_z_ratio = (margin_roc_z > 1).rolling(window, min_periods=window).mean()
+    return (positive_ratio + high_z_ratio) / 2
+
+
+def is_price_and_margin_factor_extreme(row: pd.Series) -> bool:
+    return bool(
+        (row.get("index_yoy_z", math.nan) > 2.0)
+        and (row.get("index_qoq_z", math.nan) > 2.0)
+        and (row.get("margin_roc_z", math.nan) > 2.0)
+    )
+
+
+def derive_final_signal_and_reason(row: pd.Series) -> tuple[str, str]:
+    raw_signal = str(row.get("raw_signal", row.get("signal", "NORMAL")))
+    factor_extreme = is_price_and_margin_factor_extreme(row)
+    high_autocorr_rank = row.get("margin_roc_autocorr_rank_252", math.nan) > 0.90
+    high_persistence = row.get("margin_roc_persistence_score", math.nan) > 0.70
+
+    if factor_extreme and (high_autocorr_rank or high_persistence):
+        reason_parts = ["price_and_margin_factor_extreme"]
+        if high_autocorr_rank:
+            reason_parts.append("autocorr_rank_252_gt_90pct")
+        if high_persistence:
+            reason_parts.append("persistence_gt_70pct")
+        return "LATE_CYCLE_LEVERAGE_WARNING", "; ".join(reason_parts)
+    if factor_extreme:
+        return (
+            "PRICE_AND_MARGIN_EXTREME",
+            "price_and_margin_factor_extreme; waiting_for_autocorr_or_persistence_confirmation",
+        )
+    return raw_signal, f"raw_signal={raw_signal}"
+
+
+def derive_latest_signal(latest: pd.Series) -> str:
+    if "final_signal" in latest:
+        return str(latest.get("final_signal", "NORMAL"))
+    return derive_final_signal_and_reason(latest)[0]
+
+
 def assign_signals(df: pd.DataFrame) -> pd.Series:
     high = df["margin_roc_autocorr"] >= df["autocorr_high_threshold"]
     margin_up = df["margin_roc"] > 0
@@ -358,6 +522,51 @@ def assign_signals(df: pd.DataFrame) -> pd.Series:
     signal.loc[high & margin_up & qoq_down & yoy_up] = "LATE_CYCLE_LEVERAGE_WARNING"
     signal.loc[high & margin_down & qoq_down] = "DELEVERAGING_RISK"
     return signal
+
+
+def leverage_cycle_phase_from_signal(signal: str) -> str:
+    if signal in {"HOT_LEVERAGE_MOMENTUM", "PRICE_AND_MARGIN_EXTREME"}:
+        return "hot_leverage_momentum"
+    if signal == "LATE_CYCLE_LEVERAGE_WARNING":
+        return "late_cycle_leverage_warning"
+    if signal == "DELEVERAGING_RISK":
+        return "deleveraging_risk"
+    return "normal"
+
+
+def assign_transition_watch(df: pd.DataFrame) -> pd.Series:
+    qoq_turning_weaker = df["index_qoq_change_20d"] < 0
+    margin_still_high = (df["margin_roc"] > 0) & (df["margin_roc_z"] > 1.0)
+    distribution_warning = qoq_turning_weaker & margin_still_high
+
+    deleveraging_risk_watch = (df["index_close_return_20d"] < 0) & (df["margin_roc_change_20d"] < 0)
+
+    transition_watch = pd.Series("none", index=df.index, dtype="object")
+    transition_watch.loc[distribution_warning] = "distribution_warning"
+    transition_watch.loc[deleveraging_risk_watch] = "deleveraging_risk_watch"
+    return transition_watch
+
+
+def assign_signal_columns(df: pd.DataFrame) -> pd.DataFrame:
+    out = df.copy()
+    out["index_close_return_20d"] = out["index_close"].pct_change(20)
+    out["index_qoq_change_20d"] = out["index_qoq"].diff(20)
+    out["margin_roc_change_20d"] = out["margin_roc"].diff(20)
+    out["raw_signal"] = assign_signals(out)
+    out["transition_watch"] = assign_transition_watch(out)
+
+    derived = out.apply(derive_final_signal_and_reason, axis=1, result_type="expand")
+    out["final_signal"] = derived[0]
+    out["final_signal_reason"] = derived[1]
+    has_transition_watch = out["transition_watch"] != "none"
+    out.loc[has_transition_watch, "final_signal_reason"] = (
+        out.loc[has_transition_watch, "final_signal_reason"]
+        + "; transition_watch="
+        + out.loc[has_transition_watch, "transition_watch"]
+    )
+    out["leverage_cycle_phase"] = out["final_signal"].map(leverage_cycle_phase_from_signal)
+    out["signal"] = out["final_signal"]
+    return out
 
 
 def build_model_frame(index_df: pd.DataFrame, margin_df: pd.DataFrame, config: ModelConfig) -> pd.DataFrame:
@@ -376,19 +585,383 @@ def build_model_frame(index_df: pd.DataFrame, margin_df: pd.DataFrame, config: M
     threshold = df["margin_roc_autocorr"].quantile(config.threshold_quantile)
     df["autocorr_high_threshold"] = threshold
     df["is_autocorr_high"] = df["margin_roc_autocorr"] >= threshold
-    df["signal"] = assign_signals(df)
-    return df
+    df["index_yoy_z"] = robust_zscore(df["index_yoy"])
+    df["index_qoq_z"] = robust_zscore(df["index_qoq"])
+    df["margin_roc_z"] = robust_zscore(df["margin_roc"])
+    df["margin_roc_autocorr_z"] = robust_zscore(df["margin_roc_autocorr"])
+    df["margin_roc_autocorr_percentile_full_sample"] = full_sample_percentile(df["margin_roc_autocorr"])
+    df["margin_roc_autocorr_percentile"] = df["margin_roc_autocorr_percentile_full_sample"]
+    df["margin_roc_autocorr_rank_252"] = rolling_percentile_rank(df["margin_roc_autocorr"], window=252)
+    df["margin_roc_persistence_score"] = margin_roc_persistence_score(df["margin_roc"], df["margin_roc_z"])
+    df["margin_roc_autocorr_plot"] = df["margin_roc_autocorr_rank_252"].clip(0, 1)
+    df["index_yoy_z_plot"] = df["index_yoy_z"].ewm(span=20, adjust=False).mean().clip(-3, 3)
+    df["index_qoq_z_plot"] = df["index_qoq_z"].ewm(span=20, adjust=False).mean().clip(-3, 3)
+    df["margin_roc_z_plot"] = df["margin_roc_z"].ewm(span=20, adjust=False).mean().clip(-3, 3)
+    df["margin_roc_autocorr_bar"] = ((df["margin_roc_autocorr_rank_252"] - 0.5) * 2).clip(-1, 1)
+    df["index_yoy_ref"] = df["index_yoy_z"].ewm(span=30, adjust=False).mean().clip(-2.5, 2.5)
+    df["index_qoq_ref"] = df["index_qoq_z"].ewm(span=20, adjust=False).mean().clip(-2.5, 2.5)
+    df["margin_roc_ref"] = df["margin_roc_z"].ewm(span=20, adjust=False).mean().clip(-2.5, 2.5)
+    df["autocorr_bar"] = ((df["margin_roc_autocorr_rank_252"] - 0.5) * 2).clip(-1, 1)
+    return assign_signal_columns(df)
 
 
-def plot_growth(df: pd.DataFrame, output_path: Path) -> None:
+def diagnostic_source_frame(
+    index_df: pd.DataFrame, margin_df: pd.DataFrame, model_df: pd.DataFrame
+) -> pd.DataFrame:
+    index_source = index_df[["date", "index_close"]].copy()
+    margin_source = margin_df[["date", "margin_balance_thousand_ntd"]].copy()
+    source = pd.merge(index_source, margin_source, on="date", how="outer", indicator=True)
+    features = model_df[
+        [
+            "date",
+            "index_yoy",
+            "index_qoq",
+            "margin_roc",
+            "index_yoy_z",
+            "index_qoq_z",
+            "margin_roc_z",
+            "margin_roc_autocorr",
+            "margin_roc_autocorr_z",
+            "margin_roc_autocorr_percentile",
+            "margin_roc_autocorr_percentile_full_sample",
+            "margin_roc_autocorr_rank_252",
+            "margin_roc_persistence_score",
+            "margin_roc_autocorr_plot",
+            "autocorr_high_threshold",
+        ]
+    ].copy()
+    diagnostic = pd.merge(source, features, on="date", how="left")
+    diagnostic = diagnostic.rename(
+        columns={
+            "index_close": "taiex_close",
+            "margin_balance_thousand_ntd": "margin_balance",
+        }
+    )
+    return diagnostic.sort_values("date").reset_index(drop=True)
+
+
+def add_diagnostic_reason(
+    reasons: dict[pd.Timestamp, list[str]],
+    diagnostic: pd.DataFrame,
+    mask: pd.Series,
+    reason: str,
+) -> None:
+    dates = pd.to_datetime(diagnostic.loc[mask.fillna(False), "date"])
+    for item in dates:
+        reasons.setdefault(item.normalize(), []).append(reason)
+
+
+def reasons_to_report(
+    diagnostic: pd.DataFrame,
+    reasons: dict[pd.Timestamp, list[str]],
+    columns: list[str],
+) -> pd.DataFrame:
+    if not reasons:
+        return pd.DataFrame(columns=columns)
+
+    diagnostic_by_date = diagnostic.drop_duplicates(subset=["date"], keep="last").set_index("date")
+    rows: list[dict[str, Any]] = []
+    for outlier_date in sorted(reasons):
+        source_row = diagnostic_by_date.loc[outlier_date]
+        row = {
+            "date": outlier_date,
+            "taiex_close": source_row.get("taiex_close", math.nan),
+            "margin_balance": source_row.get("margin_balance", math.nan),
+            "index_yoy": source_row.get("index_yoy", math.nan),
+            "index_qoq": source_row.get("index_qoq", math.nan),
+            "margin_roc": source_row.get("margin_roc", math.nan),
+            "index_yoy_z": source_row.get("index_yoy_z", math.nan),
+            "index_qoq_z": source_row.get("index_qoq_z", math.nan),
+            "margin_roc_z": source_row.get("margin_roc_z", math.nan),
+            "margin_roc_autocorr": source_row.get("margin_roc_autocorr", math.nan),
+            "margin_roc_autocorr_z": source_row.get("margin_roc_autocorr_z", math.nan),
+            "margin_roc_autocorr_percentile": source_row.get("margin_roc_autocorr_percentile", math.nan),
+            "margin_roc_autocorr_percentile_full_sample": source_row.get(
+                "margin_roc_autocorr_percentile_full_sample", math.nan
+            ),
+            "margin_roc_autocorr_rank_252": source_row.get("margin_roc_autocorr_rank_252", math.nan),
+            "margin_roc_persistence_score": source_row.get("margin_roc_persistence_score", math.nan),
+            "margin_roc_autocorr_plot": source_row.get("margin_roc_autocorr_plot", math.nan),
+            "autocorr_high_threshold": source_row.get("autocorr_high_threshold", math.nan),
+            "reason": ";".join(sorted(set(reasons[outlier_date]))),
+        }
+        rows.append({column: row.get(column, math.nan) for column in columns})
+    return pd.DataFrame(rows, columns=columns)
+
+
+def verify_taiex_close(query_date: pd.Timestamp, observed_close: float) -> bool:
+    try:
+        month_df = fetch_index_month(date(query_date.year, query_date.month, 1))
+    except Exception as exc:  # noqa: BLE001
+        print(f"Warning: unable to verify TAIEX close for {query_date.date()}: {exc}", flush=True)
+        return False
+    matched = month_df.loc[month_df["date"].dt.normalize() == query_date.normalize(), "index_close"]
+    return bool(not matched.empty and np.isclose(float(matched.iloc[0]), float(observed_close), rtol=0, atol=0.01))
+
+
+def verify_margin_balance(query_date: pd.Timestamp, observed_balance: float) -> bool:
+    try:
+        row = fetch_margin_for_date(query_date)
+    except Exception as exc:  # noqa: BLE001
+        print(f"Warning: unable to verify margin balance for {query_date.date()}: {exc}", flush=True)
+        return False
+    return bool(np.isclose(float(row["margin_balance_thousand_ntd"]), float(observed_balance), rtol=0, atol=0.5))
+
+
+def build_data_quality_report(
+    index_df: pd.DataFrame,
+    margin_df: pd.DataFrame,
+    model_df: pd.DataFrame,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    diagnostic = diagnostic_source_frame(index_df, margin_df, model_df)
+    reasons: dict[pd.Timestamp, list[str]] = {}
+
+    add_diagnostic_reason(reasons, diagnostic, diagnostic["taiex_close"] <= 0, "taiex_close_lte_0")
+    add_diagnostic_reason(reasons, diagnostic, diagnostic["margin_balance"] <= 0, "margin_balance_lte_0")
+
+    duplicated_dates = pd.concat(
+        [
+            pd.to_datetime(index_df.loc[index_df["date"].duplicated(keep=False), "date"]),
+            pd.to_datetime(margin_df.loc[margin_df["date"].duplicated(keep=False), "date"]),
+            pd.to_datetime(model_df.loc[model_df["date"].duplicated(keep=False), "date"]),
+        ],
+        ignore_index=True,
+    ).drop_duplicates()
+    for item in duplicated_dates:
+        reasons.setdefault(item.normalize(), []).append("date_duplicated")
+
+    merge_nan = diagnostic["taiex_close"].isna() | diagnostic["margin_balance"].isna()
+    add_diagnostic_reason(reasons, diagnostic, merge_nan, "required_field_nan_after_merge")
+
+    taiex_jump = diagnostic["taiex_close"].pct_change().abs() > 0.15
+    add_diagnostic_reason(reasons, diagnostic, taiex_jump, "taiex_single_day_return_abs_gt_15pct")
+
+    margin_jump = diagnostic["margin_balance"].pct_change().abs() > 0.20
+    add_diagnostic_reason(reasons, diagnostic, margin_jump, "margin_balance_single_day_return_abs_gt_20pct")
+
+    return reasons_to_report(diagnostic, reasons, DATA_QUALITY_COLUMNS), diagnostic
+
+
+def build_market_extreme_report(model_df: pd.DataFrame, diagnostic: pd.DataFrame) -> pd.DataFrame:
+    reasons: dict[pd.Timestamp, list[str]] = {}
+
+    add_diagnostic_reason(reasons, diagnostic, diagnostic["index_yoy"] > 0.80, "raw_index_yoy_gt_80pct")
+    add_diagnostic_reason(reasons, diagnostic, diagnostic["index_qoq"] > 0.40, "raw_index_qoq_gt_40pct")
+    add_diagnostic_reason(reasons, diagnostic, diagnostic["margin_roc"] > 0.40, "raw_margin_roc_gt_40pct")
+    add_diagnostic_reason(reasons, diagnostic, diagnostic["index_yoy_z"] > 2.0, "index_yoy_z_gt_2")
+    add_diagnostic_reason(reasons, diagnostic, diagnostic["index_qoq_z"] > 2.0, "index_qoq_z_gt_2")
+    add_diagnostic_reason(reasons, diagnostic, diagnostic["margin_roc_z"] > 2.0, "margin_roc_z_gt_2")
+    add_diagnostic_reason(
+        reasons,
+        diagnostic,
+        diagnostic["margin_roc_autocorr_percentile_full_sample"] > 0.90,
+        "margin_roc_autocorr_full_sample_percentile_gt_90pct",
+    )
+    add_diagnostic_reason(
+        reasons,
+        diagnostic,
+        diagnostic["margin_roc_autocorr_rank_252"] > 0.90,
+        "margin_roc_autocorr_rank_252_gt_90pct",
+    )
+    add_diagnostic_reason(
+        reasons,
+        diagnostic,
+        diagnostic["margin_roc_persistence_score"] > 0.70,
+        "margin_roc_persistence_score_gt_70pct",
+    )
+
+    return reasons_to_report(diagnostic, reasons, MARKET_EXTREME_COLUMNS)
+
+
+def build_outlier_context(
+    quality_report: pd.DataFrame, diagnostic: pd.DataFrame, context_window: int = 5
+) -> pd.DataFrame:
+    if quality_report.empty:
+        return pd.DataFrame(columns=OUTLIER_CONTEXT_COLUMNS)
+
+    source = diagnostic.sort_values("date").reset_index(drop=True)
+    rows: list[dict[str, Any]] = []
+    for outlier_date in pd.to_datetime(quality_report["date"]).drop_duplicates().sort_values():
+        positions = source.index[pd.to_datetime(source["date"]) == outlier_date]
+        if len(positions) == 0:
+            continue
+        position = int(positions[0])
+        context = source.loc[max(0, position - context_window) : position + context_window]
+        for _, row in context.iterrows():
+            rows.append(
+                {
+                    "outlier_date": outlier_date,
+                    "context_date": row["date"],
+                    "taiex_close": row.get("taiex_close", math.nan),
+                    "margin_balance": row.get("margin_balance", math.nan),
+                    "index_yoy": row.get("index_yoy", math.nan),
+                    "index_qoq": row.get("index_qoq", math.nan),
+                    "margin_roc": row.get("margin_roc", math.nan),
+                }
+            )
+    return pd.DataFrame(rows, columns=OUTLIER_CONTEXT_COLUMNS)
+
+
+def write_diagnostic_csv(df: pd.DataFrame, output_path: Path, date_columns: list[str]) -> None:
+    output_df = df.copy()
+    for column in date_columns:
+        if column in output_df.columns:
+            output_df[column] = pd.to_datetime(output_df[column]).dt.date
+    output_df.to_csv(output_path, index=False, encoding="utf-8-sig")
+
+
+def plot_raw_percent(df: pd.DataFrame, output_path: Path) -> None:
     plot_df = df.dropna(subset=["index_yoy", "index_qoq", "margin_roc"])
+    yoy = plot_df["index_yoy"] * 100
+    qoq = plot_df["index_qoq"] * 100
+    margin_roc = plot_df["margin_roc"] * 100
+
     fig, ax = plt.subplots(figsize=(14, 7))
-    ax.plot(plot_df["date"], plot_df["index_yoy"] * 100, color="#f2c94c", linewidth=1.7, label="Index YoY")
-    ax.plot(plot_df["date"], plot_df["index_qoq"] * 100, color="#2f80ed", linewidth=1.4, label="Index QoQ")
-    ax.plot(plot_df["date"], plot_df["margin_roc"] * 100, color="#8c8c8c", linewidth=1.2, label="Margin ROC")
+    ax.plot(plot_df["date"], yoy, color="#f2c94c", linewidth=1.7, label="Index YoY")
+    ax.plot(plot_df["date"], qoq, color="#2f80ed", linewidth=1.4, label="Index QoQ")
+    ax.plot(plot_df["date"], margin_roc, color="#8c8c8c", linewidth=1.2, label="Margin ROC")
     ax.axhline(0, color="#333333", linewidth=0.8, alpha=0.6)
-    ax.set_title("TAIEX Growth and Margin Balance ROC")
+    ax.set_title("TAIEX Growth and Margin Balance ROC (Raw Percent Diagnostics)")
     ax.set_ylabel("Percent")
+    ax.grid(True, axis="y", alpha=0.25)
+    ax.legend(loc="upper left")
+    ax.xaxis.set_major_locator(mdates.YearLocator(1))
+    ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
+    fig.autofmt_xdate()
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=160)
+    plt.close(fig)
+
+
+def plot_factor_chart_debug(df: pd.DataFrame, output_path: Path) -> None:
+    plot_df = df.dropna(subset=["index_yoy_z", "index_qoq_z", "margin_roc_z"])
+    fig, ax = plt.subplots(figsize=(14, 7))
+    bar_height = plot_df["margin_roc_autocorr_plot"].fillna(0).clip(0, 1)
+    ax.bar(
+        plot_df["date"],
+        bar_height,
+        bottom=-3.5,
+        width=3,
+        color="#bdbdbd",
+        alpha=0.45,
+        label="Margin ROC autocorr rank 252",
+        align="center",
+    )
+    ax.plot(plot_df["date"], plot_df["index_yoy_z"], color="#f2c94c", linewidth=1.7, label="Index YoY z")
+    ax.plot(plot_df["date"], plot_df["index_qoq_z"], color="#2f80ed", linewidth=1.4, label="Index QoQ z")
+    ax.plot(plot_df["date"], plot_df["margin_roc_z"], color="#6e6e6e", linewidth=1.2, label="Margin ROC z")
+    ax.axhline(0, color="#333333", linewidth=0.8, alpha=0.75)
+    ax.set_ylim(-3.5, 3.5)
+    ax.set_title("TAIEX Growth / Margin ROC Standardized Factor Chart - Z SCORE VERSION")
+    ax.set_ylabel("Standardized score")
+    ax.grid(True, axis="y", alpha=0.25)
+    ax.legend(loc="upper left", ncols=2)
+    ax.xaxis.set_major_locator(mdates.YearLocator(1))
+    ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
+    fig.autofmt_xdate()
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=160)
+    plt.close(fig)
+
+
+def plot_factor_chart_smooth(df: pd.DataFrame, output_path: Path) -> None:
+    plot_columns = ["index_yoy_z_plot", "index_qoq_z_plot", "margin_roc_z_plot"]
+    plot_df = df.dropna(subset=plot_columns)
+    fig, ax = plt.subplots(figsize=(14, 7))
+    bar_height = plot_df["margin_roc_autocorr_bar"].fillna(0).clip(-1, 1) * 0.25
+    ax.bar(
+        plot_df["date"],
+        bar_height,
+        width=1,
+        color="#bdbdbd",
+        alpha=0.25,
+        label="Margin ROC autocorr rank 252",
+        align="center",
+        zorder=1,
+    )
+    ax.plot(
+        plot_df["date"],
+        plot_df["index_yoy_z_plot"],
+        color="#f2c94c",
+        linewidth=1.2,
+        label="Index YoY z smoothed",
+        zorder=3,
+    )
+    ax.plot(
+        plot_df["date"],
+        plot_df["index_qoq_z_plot"],
+        color="#2f80ed",
+        linewidth=1.2,
+        label="Index QoQ z smoothed",
+        zorder=3,
+    )
+    ax.plot(
+        plot_df["date"],
+        plot_df["margin_roc_z_plot"],
+        color="#6e6e6e",
+        linewidth=1.2,
+        label="Margin ROC z smoothed",
+        zorder=3,
+    )
+    ax.axhline(0, color="#333333", linewidth=0.8, alpha=0.75, zorder=2)
+    ax.set_ylim(-3.5, 3.5)
+    ax.set_title("TAIEX Growth / Margin ROC Smoothed Standardized Factor Chart")
+    ax.set_ylabel("Smoothed standardized score")
+    ax.grid(True, axis="y", alpha=0.25)
+    ax.legend(loc="upper left")
+    ax.xaxis.set_major_locator(mdates.YearLocator(1))
+    ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
+    fig.autofmt_xdate()
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=160)
+    plt.close(fig)
+
+
+def plot_reference_style_chart(df: pd.DataFrame, output_path: Path) -> None:
+    plot_columns = ["index_yoy_ref", "index_qoq_ref", "margin_roc_ref"]
+    plot_df = df.dropna(subset=plot_columns)
+    fig, ax = plt.subplots(figsize=(16, 8))
+    bar_base = -2.8
+    bar_height = plot_df["autocorr_bar"].fillna(0).clip(-1, 1) * 0.25
+    ax.bar(
+        plot_df["date"],
+        bar_height,
+        bottom=bar_base,
+        width=1,
+        alpha=0.25,
+        color="gray",
+        label="Margin autocorr / persistence",
+        align="center",
+        zorder=1,
+    )
+    ax.plot(
+        plot_df["date"],
+        plot_df["index_yoy_ref"],
+        color="#f2c94c",
+        linewidth=1.2,
+        label="Index YoY",
+        zorder=3,
+    )
+    ax.plot(
+        plot_df["date"],
+        plot_df["index_qoq_ref"],
+        color="#2f80ed",
+        linewidth=1.2,
+        label="Index QoQ",
+        zorder=3,
+    )
+    ax.plot(
+        plot_df["date"],
+        plot_df["margin_roc_ref"],
+        color="#6e6e6e",
+        linewidth=1.2,
+        label="Margin ROC",
+        zorder=3,
+    )
+    ax.axhline(0, color="#333333", linewidth=0.8, alpha=0.75, zorder=2)
+    ax.set_ylim(-3.2, 3.2)
+    ax.set_title("TAIEX Growth / Margin ROC Reference Style Factor Chart")
+    ax.set_ylabel("Relative factor score")
     ax.grid(True, axis="y", alpha=0.25)
     ax.legend(loc="upper left")
     ax.xaxis.set_major_locator(mdates.YearLocator(1))
@@ -402,6 +975,7 @@ def plot_growth(df: pd.DataFrame, output_path: Path) -> None:
 def plot_signals(df: pd.DataFrame, output_path: Path) -> None:
     signal_colors = {
         "HOT_LEVERAGE_MOMENTUM": "#d62728",
+        "PRICE_AND_MARGIN_EXTREME": "#9467bd",
         "LATE_CYCLE_LEVERAGE_WARNING": "#ff7f0e",
         "DELEVERAGING_RISK": "#1f77b4",
     }
@@ -448,26 +1022,94 @@ def json_safe(value: Any) -> Any:
     return value
 
 
-def write_summary(df: pd.DataFrame, config: ModelConfig, output_path: Path) -> None:
+def write_summary(
+    df: pd.DataFrame,
+    config: ModelConfig,
+    output_path: Path,
+    quality_report: pd.DataFrame,
+    market_extreme_report: pd.DataFrame,
+) -> None:
     latest = df.dropna(subset=["index_close", "margin_balance_thousand_ntd"]).iloc[-1]
-    signal_counts = df["signal"].value_counts(dropna=False).to_dict()
+    latest_date = latest["date"].normalize()
+    if quality_report.empty:
+        data_quality_warning = False
+    else:
+        warning_dates = set(pd.to_datetime(quality_report["date"]).dt.normalize())
+        data_quality_warning = latest_date in warning_dates
+    market_extreme_warning = bool(
+        (latest["index_yoy_z"] > 2.0)
+        or (latest["index_qoq_z"] > 2.0)
+        or (latest["margin_roc_z"] > 2.0)
+        or (latest["margin_roc_autocorr_percentile_full_sample"] > 0.90)
+        or (latest["margin_roc_autocorr_rank_252"] > 0.90)
+        or (latest["margin_roc_persistence_score"] > 0.70)
+    )
+    latest_signal = derive_latest_signal(latest)
+    raw_signal = str(latest.get("raw_signal", latest.get("signal", "NORMAL")))
+    final_signal = str(latest.get("final_signal", latest_signal))
+    final_signal_reason = str(latest.get("final_signal_reason", "not_available"))
+    leverage_cycle_phase = str(latest.get("leverage_cycle_phase", leverage_cycle_phase_from_signal(final_signal)))
+    transition_watch = str(latest.get("transition_watch", "none"))
+    raw_signal_counts = df.get("raw_signal", df["signal"]).value_counts(dropna=False).to_dict()
+    final_signal_counts = df.get("final_signal", df["signal"]).value_counts(dropna=False).to_dict()
+    signal_counts = final_signal_counts
     summary = {
         "generated_at": datetime.now(ZoneInfo("Asia/Taipei")).isoformat(),
         "data_start": df["date"].min().date().isoformat(),
         "data_end": df["date"].max().date().isoformat(),
         "rows": int(len(df)),
+        "data_quality_warning": data_quality_warning,
+        "market_extreme_warning": market_extreme_warning,
+        "latest_signal": latest_signal,
+        "raw_signal": raw_signal,
+        "final_signal": final_signal,
+        "final_signal_reason": final_signal_reason,
+        "leverage_cycle_phase": leverage_cycle_phase,
+        "transition_watch": transition_watch,
+        "latest_index_yoy": latest["index_yoy"],
+        "latest_index_qoq": latest["index_qoq"],
+        "latest_margin_roc": latest["margin_roc"],
+        "latest_index_yoy_z": latest["index_yoy_z"],
+        "latest_index_qoq_z": latest["index_qoq_z"],
+        "latest_margin_roc_z": latest["margin_roc_z"],
+        "latest_margin_roc_autocorr": latest["margin_roc_autocorr"],
+        "latest_margin_roc_autocorr_percentile_full_sample": latest[
+            "margin_roc_autocorr_percentile_full_sample"
+        ],
+        "latest_margin_roc_autocorr_rank_252": latest["margin_roc_autocorr_rank_252"],
+        "latest_margin_roc_persistence_score": latest["margin_roc_persistence_score"],
+        "latest_margin_roc_autocorr_percentile": latest["margin_roc_autocorr_percentile"],
+        "autocorr_high_threshold": latest["autocorr_high_threshold"],
+        "latest_close": latest["index_close"],
+        "latest_margin_balance": latest["margin_balance_thousand_ntd"],
         "latest": {
             "date": latest["date"].date().isoformat(),
-            "signal": latest["signal"],
+            "signal": final_signal,
+            "raw_signal": raw_signal,
+            "final_signal": final_signal,
+            "final_signal_reason": final_signal_reason,
+            "leverage_cycle_phase": leverage_cycle_phase,
+            "transition_watch": transition_watch,
             "index_close": latest["index_close"],
             "index_yoy": latest["index_yoy"],
             "index_qoq": latest["index_qoq"],
             "margin_balance_thousand_ntd": latest["margin_balance_thousand_ntd"],
             "margin_roc": latest["margin_roc"],
+            "index_yoy_z": latest["index_yoy_z"],
+            "index_qoq_z": latest["index_qoq_z"],
+            "margin_roc_z": latest["margin_roc_z"],
             "margin_roc_autocorr": latest["margin_roc_autocorr"],
+            "margin_roc_autocorr_percentile_full_sample": latest[
+                "margin_roc_autocorr_percentile_full_sample"
+            ],
+            "margin_roc_autocorr_rank_252": latest["margin_roc_autocorr_rank_252"],
+            "margin_roc_persistence_score": latest["margin_roc_persistence_score"],
+            "margin_roc_autocorr_percentile": latest["margin_roc_autocorr_percentile"],
             "autocorr_high_threshold": latest["autocorr_high_threshold"],
         },
         "signal_counts": signal_counts,
+        "raw_signal_counts": raw_signal_counts,
+        "final_signal_counts": final_signal_counts,
         "parameters": {
             "start": config.start,
             "end": config.end,
@@ -488,22 +1130,67 @@ def write_summary(df: pd.DataFrame, config: ModelConfig, output_path: Path) -> N
     )
 
 
-def write_outputs(df: pd.DataFrame, config: ModelConfig) -> None:
+def write_outputs(
+    df: pd.DataFrame,
+    index_df: pd.DataFrame,
+    margin_df: pd.DataFrame,
+    config: ModelConfig,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     config.output_dir.mkdir(parents=True, exist_ok=True)
     csv_path = config.output_dir / "tw_margin_autocorr_model.csv"
-    growth_path = config.output_dir / "tw_margin_autocorr_growth.png"
+    factor_chart_path = config.output_dir / "tw_margin_autocorr_factor_chart.png"
+    reference_style_path = config.output_dir / "tw_margin_autocorr_reference_style.png"
+    factor_chart_smooth_path = config.output_dir / "tw_margin_autocorr_factor_chart_smooth.png"
+    factor_chart_debug_path = config.output_dir / "tw_margin_autocorr_factor_chart_debug_v2.png"
+    raw_percent_path = config.output_dir / "tw_margin_autocorr_raw_percent_debug.png"
+    legacy_raw_percent_path = config.output_dir / "tw_margin_autocorr_raw_percent.png"
+    legacy_growth_path = config.output_dir / "tw_margin_autocorr_growth.png"
+    legacy_winsorized_path = config.output_dir / "tw_margin_autocorr_growth_winsorized.png"
     signal_path = config.output_dir / "tw_margin_autocorr_signal.png"
+    quality_report_path = config.output_dir / "data_quality_report.csv"
+    market_extreme_report_path = config.output_dir / "market_extreme_report.csv"
+    outlier_context_path = config.output_dir / "outlier_context.csv"
     summary_path = config.output_dir / "signal_summary.json"
 
+    quality_report, diagnostic = build_data_quality_report(index_df, margin_df, df)
+    market_extreme_report = build_market_extreme_report(df, diagnostic)
+    combined_report = pd.concat(
+        [
+            quality_report[["date"]].assign(reason_type="data_quality_error"),
+            market_extreme_report[["date"]].assign(reason_type="market_extreme_warning"),
+        ],
+        ignore_index=True,
+    )
+    outlier_context = build_outlier_context(combined_report, diagnostic)
+
     df.to_csv(csv_path, index=False, encoding="utf-8-sig")
-    plot_growth(df, growth_path)
+    plot_reference_style_chart(df, factor_chart_path)
+    plot_reference_style_chart(df, reference_style_path)
+    plot_factor_chart_smooth(df, factor_chart_smooth_path)
+    plot_factor_chart_debug(df, factor_chart_debug_path)
+    plot_raw_percent(df, raw_percent_path)
     plot_signals(df, signal_path)
-    write_summary(df, config, summary_path)
+    write_diagnostic_csv(quality_report, quality_report_path, ["date"])
+    write_diagnostic_csv(market_extreme_report, market_extreme_report_path, ["date"])
+    write_diagnostic_csv(outlier_context, outlier_context_path, ["outlier_date", "context_date"])
+    write_summary(df, config, summary_path, quality_report, market_extreme_report)
 
     print(f"Wrote {csv_path}", flush=True)
-    print(f"Wrote {growth_path}", flush=True)
+    for legacy_path in [legacy_growth_path, legacy_winsorized_path, legacy_raw_percent_path]:
+        if legacy_path.exists():
+            legacy_path.unlink()
+
+    print(f"Wrote {factor_chart_path}", flush=True)
+    print(f"Wrote {reference_style_path}", flush=True)
+    print(f"Wrote {factor_chart_smooth_path}", flush=True)
+    print(f"Wrote {factor_chart_debug_path}", flush=True)
+    print(f"Wrote {raw_percent_path}", flush=True)
     print(f"Wrote {signal_path}", flush=True)
+    print(f"Wrote {quality_report_path}", flush=True)
+    print(f"Wrote {market_extreme_report_path}", flush=True)
+    print(f"Wrote {outlier_context_path}", flush=True)
     print(f"Wrote {summary_path}", flush=True)
+    return quality_report, outlier_context
 
 
 def main() -> None:
@@ -515,7 +1202,8 @@ def main() -> None:
     margin_df = fetch_margin_history(index_df["date"], config, output_csv)
     print(f"Available margin observations: {len(margin_df)}", flush=True)
     model_df = build_model_frame(index_df, margin_df, config)
-    write_outputs(model_df, config)
+    quality_report, _ = write_outputs(model_df, index_df, margin_df, config)
+    print(f"Data quality outliers: {len(quality_report)}", flush=True)
 
 
 if __name__ == "__main__":

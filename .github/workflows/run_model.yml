@@ -34,7 +34,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add output/tw_margin_autocorr_model.csv output/tw_margin_autocorr_growth.png output/tw_margin_autocorr_signal.png output/signal_summary.json
+          git add output/tw_margin_autocorr_model.csv output/tw_margin_autocorr_growth.png output/tw_margin_autocorr_factor_chart.png output/tw_margin_autocorr_reference_style.png output/tw_margin_autocorr_factor_chart_smooth.png output/tw_margin_autocorr_factor_chart_debug_v2.png output/tw_margin_autocorr_raw_percent_debug.png output/tw_margin_autocorr_signal.png output/data_quality_report.csv output/market_extreme_report.csv output/outlier_context.csv output/signal_summary.json
           if git diff --cached --quiet; then
             echo "No output changes to commit."
           else

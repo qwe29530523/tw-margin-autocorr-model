@@ -8,11 +8,13 @@
 
 ## 圖表線條
 
-`output/tw_margin_autocorr_growth.png` 會顯示三條主要線：
+`output/tw_margin_autocorr_reference_style.png` 是主要判讀圖，會顯示三條平滑後的相對強弱 factor 線：
 
-- 黃線：`index_yoy`，加權指數年增率，預設用 252 個交易日計算。
-- 藍線：`index_qoq`，加權指數季增率，預設用 63 個交易日計算。
-- 灰線：`margin_roc`，集中市場融資金額餘額變化率，預設用 63 個交易日計算。
+- 黃線：`index_yoy_ref`，由加權指數年增率 `index_yoy` 的 robust z-score 平滑而來。
+- 藍線：`index_qoq_ref`，由加權指數季增率 `index_qoq` 的 robust z-score 平滑而來。
+- 灰線：`margin_roc_ref`，由集中市場融資餘額變化率 `margin_roc` 的 robust z-score 平滑而來。
+
+底部灰色細 bar 是 `autocorr_bar`，用最近 252 筆融資變化率自相關 percentile rank 轉換後繪製，用來觀察融資變化持續性在近期樣本中的相對位置。
 
 ## 自相關高分位數的意義
 
@@ -25,6 +27,10 @@
 - `DELEVERAGING_RISK`：融資下降、指數季動能為負，且融資變化持續性偏高。
 - `NORMAL`：未落入上述狀態。
 
+CSV 會同時保留 `raw_signal` 與 `final_signal`。`raw_signal` 是上述自相關規則的原始結果；`final_signal` 會再納入 standardized factor extreme、252 日自相關 rank 與融資持續性，並用 `final_signal_reason` 說明覆寫原因。`leverage_cycle_phase` 會把 final signal 歸納成 `normal`、`hot_leverage_momentum`、`late_cycle_leverage_warning` 或 `deleveraging_risk`。
+
+`transition_watch` 是轉折觀察欄位：`distribution_warning` 代表 `index_qoq` 開始轉弱但 `margin_roc` 仍高；`deleveraging_risk_watch` 代表指數 20 日報酬轉負且 `margin_roc` 開始下降。
+
 ## 本機執行
 
 ```bash
@@ -35,9 +41,22 @@ python tw_margin_autocorr_model.py --start 2012-01-01
 輸出會寫到 `output/`：
 
 - `output/tw_margin_autocorr_model.csv`
-- `output/tw_margin_autocorr_growth.png`
+- `output/tw_margin_autocorr_factor_chart.png`
+- `output/tw_margin_autocorr_reference_style.png`
+- `output/tw_margin_autocorr_factor_chart_smooth.png`
+- `output/tw_margin_autocorr_factor_chart_debug_v2.png`
+- `output/tw_margin_autocorr_raw_percent_debug.png`
 - `output/tw_margin_autocorr_signal.png`
+- `output/data_quality_report.csv`
+- `output/market_extreme_report.csv`
+- `output/outlier_context.csv`
 - `output/signal_summary.json`
+
+`tw_margin_autocorr_reference_style.png` 是主要判讀圖，使用 reference-style factor 欄位呈現市場 regime；`tw_margin_autocorr_factor_chart.png` 也輸出同一張主圖，方便沿用既有入口。`tw_margin_autocorr_factor_chart_debug_v2.png` 保留未平滑 daily z-score，只用於檢查高頻跳動。`tw_margin_autocorr_raw_percent_debug.png` is raw percent chart only for data inspection, not for regime interpretation.
+
+`data_quality_report.csv` 只列出疑似資料錯誤的日期與原因；`market_extreme_report.csv` 會列出高成長、高槓桿、自相關高分位、樣本新高等市場極端狀態。`outlier_context.csv` 會列出每個 data quality 或 market extreme 日期前後 5 筆原始模型資料，方便追查是資料源、快取或市場本身造成。
+
+`signal_summary.json` 是最新狀態報告，會顯示 `market_extreme_warning`、`data_quality_warning`、`raw_signal`、`final_signal`、`final_signal_reason`、`leverage_cycle_phase` 與 `transition_watch`。
 
 第一次從 2012 年開始抓融資日資料會比較久。之後如果 `output/tw_margin_autocorr_model.csv` 已存在，腳本會沿用其中的融資餘額資料，只補尚未存在的交易日。
 
