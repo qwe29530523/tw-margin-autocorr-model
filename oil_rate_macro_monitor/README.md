@@ -1,6 +1,18 @@
 # Oil Rate Macro Monitor
 
-`oil_rate_macro_monitor` 是一個 Python 3.11+ 的原油、利率、庫存、成品需求、裂解價差 proxy 與資金成本總經監控系統。核心模式只使用 FRED + EIA，不把 Yahoo / yfinance 當核心資料源；Yahoo 只保留為 optional market overlay，預設關閉。
+`oil_rate_macro_monitor` 是 **Global Oil / Inflation Pressure System**。它用來整理原油價格、WTI curve proxy、physical tightness、成品油壓力，以及油價如何傳導到 inflation / rates 的 macro pressure。
+
+正式決策架構只能分成以下 5 層：
+
+1. Oil Price & WTI Curve
+2. Physical Tightness
+3. Product Inventory Pressure
+4. Oil → Inflation / Rates Transmission
+5. Final Oil-Rate Macro Regime
+
+fetchers、processors、validation、reports、charts、tests 都是 **Supporting Implementation Layers**。它們是支援資料讀取、轉換、檢查、呈現與驗證的工程層，不是額外的 macro decision systems，也不代表這個系統有 10 個核心子系統。
+
+核心模式只使用 FRED + EIA，不把 Yahoo / yfinance 當核心資料源；Yahoo 只保留為 optional market overlay，預設關閉。
 
 ## 安裝
 
@@ -63,6 +75,8 @@ Dashboard：
 streamlit run src/reports/dashboard.py
 ```
 
+Dashboard、markdown report 與 chart modules 只屬於 Supporting Implementation Layers，用來呈現上述 5 層判斷結果，不新增正式決策層。
+
 ## 資料來源與限制
 
 FRED 用來抓利率與油價序列，例如 `FEDFUNDS`、`SOFR`、`DGS3MO`、`DGS1`、`DGS2`、`DGS5`、`DGS10`、`DGS30`、`T10Y2Y`、`T10Y3M`、`DCOILWTICO`、`DCOILBRENTEU`。EIA 用來抓原油/汽油/餾分油庫存、煉廠開工率、煉廠原油投入、原油產量、原油出口、汽油/餾分油/航煤 product supplied，以及汽油、柴油、取暖油價格 proxy。
@@ -75,9 +89,9 @@ Yahoo Finance 不屬於核心資料源。若 `USE_YAHOO=true`，程式可以抓 
 
 Baker Hughes rig count 第一版先支援手動下載 CSV/XLSX，再用 `load_baker_hughes_rig_count(file_path)` 讀取與標準化。
 
-## 訊號
+## 正式決策輸出
 
-核心 regime：
+Final Oil-Rate Macro Regime：
 
 - `inflation_pressure`
 - `growth_strength`
@@ -109,3 +123,5 @@ python -m pytest tests
 - macro regime engine
 - markdown report format
 - inflation / recession / stagflation-or-supply-shock legacy regime 基本規則
+
+以上測試項目屬於 Supporting Implementation Layers 的驗證範圍，不是額外的 macro decision systems。

@@ -126,8 +126,15 @@ See [docs/verification.md](docs/verification.md).
   - Reads the latest report or processed data under that root.
   - Fallback when `OIL_INFLATION_SYSTEM_ROOT` is unset: repo root `oil_rate_macro_monitor/`
   - Adapter: `oil_rate_adapter.py`
+  - Formal decision architecture has exactly five layers:
+    - Oil Price & WTI Curve
+    - Physical Tightness
+    - Product Inventory Pressure
+    - Oil → Inflation / Rates Transmission
+    - Final Oil-Rate Macro Regime
+  - Fetchers, processors, validation, reports, charts, and tests are Supporting Implementation Layers only.
 
-The Taiwan margin liquidity system and the oil + inflation system are separate systems. Neither adapter depends on the other system's paths.
+The Taiwan margin liquidity system and the oil + inflation system are separate systems. Neither adapter depends on the other system's paths. The integration layer reads published outputs from each system; it does not treat data validation, reports, charts, fetchers, processors, or tests as separate macro decision systems.
 
 ### Aggregated Summary
 
