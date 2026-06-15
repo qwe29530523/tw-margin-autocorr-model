@@ -15,6 +15,8 @@ RATE_SERIES_MAP = {
     "DGS30": "thirty_year",
     "T10Y2Y": "ten_year_two_year_spread_fred",
     "T10Y3M": "ten_year_three_month_spread_fred",
+    "T5YIE": "breakeven_5y",
+    "T10YIE": "breakeven_10y",
 }
 
 CURVE_TENORS = ["three_month", "two_year", "five_year", "ten_year", "thirty_year"]

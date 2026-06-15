@@ -75,6 +75,8 @@ SIGNAL_METADATA = {
             "product_inventory_pressure",
             "macro_regime",
             "ten_year",
+            "breakeven_5y",
+            "breakeven_10y",
             "five_year_breakeven",
         ],
     },
@@ -84,7 +86,15 @@ TARGET_SPECS = (
     ("ten_year_forward_change", ["ten_year", "ten_year_yield", "DGS10"], "change"),
     (
         "breakeven_inflation_forward_change",
-        ["five_year_breakeven", "breakeven_inflation", "five_year_breakeven_inflation", "breakeven_5y", "T5YIE"],
+        [
+            "breakeven_5y",
+            "five_year_breakeven",
+            "breakeven_inflation",
+            "five_year_breakeven_inflation",
+            "breakeven_10y",
+            "T5YIE",
+            "T10YIE",
+        ],
         "change",
     ),
     ("risk_asset_proxy_forward_return", ["risk_asset_proxy", "spx", "spy", "equity_proxy"], "return"),
@@ -494,6 +504,8 @@ def _source_confidence_signal(frame: pd.DataFrame) -> pd.Series:
         "product_inventory_pressure",
         "macro_regime",
         "ten_year",
+        "breakeven_5y",
+        "breakeven_10y",
         "five_year_breakeven",
     ]
     available = [column for column in source_columns if column in frame.columns]

@@ -87,6 +87,53 @@ def test_backtest_summary_schema_contains_required_fields_and_targets(tmp_path: 
     assert saved["results"][0]["usable_for_score"] in {True, False}
 
 
+def test_backtest_uses_processed_breakeven_5y_as_forward_change_target(tmp_path: Path) -> None:
+    frame = _weekly_frame(rows=40).drop(columns=["five_year_breakeven"])
+    frame["breakeven_5y"] = [2.1 + index * 0.002 for index in range(len(frame))]
+    input_path = _write_weekly_csv(tmp_path, frame)
+    output_path = tmp_path / "oil_signal_backtest_summary.json"
+
+    summary = run_oil_signal_backtest(
+        input_path=input_path,
+        output_path=output_path,
+        horizons_weeks=[4],
+        min_samples=5,
+    )
+
+    target_names = {item["target_name"] for item in summary["results"]}
+    unavailable_target_names = {item["target_name"] for item in summary["unavailable_targets"]}
+    breakeven_results = [
+        item for item in summary["results"] if item["target_name"] == "breakeven_inflation_forward_change"
+    ]
+    diagnostics = {item["signal_name"]: item for item in summary["feature_diagnostics"]}
+
+    assert "breakeven_inflation_forward_change" in target_names
+    assert "breakeven_inflation_forward_change" not in unavailable_target_names
+    assert breakeven_results
+    assert all(item["sample_count"] > 0 for item in breakeven_results)
+    assert "breakeven_5y" in diagnostics["source_confidence"]["available_source_columns"]
+
+
+def test_backtest_uses_processed_breakeven_10y_as_fallback_target(tmp_path: Path) -> None:
+    frame = _weekly_frame(rows=40).drop(columns=["five_year_breakeven"])
+    frame["breakeven_10y"] = [2.3 + index * 0.001 for index in range(len(frame))]
+    input_path = _write_weekly_csv(tmp_path, frame)
+    output_path = tmp_path / "oil_signal_backtest_summary.json"
+
+    summary = run_oil_signal_backtest(
+        input_path=input_path,
+        output_path=output_path,
+        horizons_weeks=[4],
+        min_samples=5,
+    )
+
+    target_names = {item["target_name"] for item in summary["results"]}
+    unavailable_target_names = {item["target_name"] for item in summary["unavailable_targets"]}
+
+    assert "breakeven_inflation_forward_change" in target_names
+    assert "breakeven_inflation_forward_change" not in unavailable_target_names
+
+
 def test_insufficient_data_is_unusable_instead_of_scored(tmp_path: Path) -> None:
     input_path = _write_weekly_csv(tmp_path, _weekly_frame(rows=6))
     output_path = tmp_path / "oil_signal_backtest_summary.json"

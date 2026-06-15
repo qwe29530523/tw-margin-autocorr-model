@@ -20,6 +20,8 @@ DEFAULT_FRED_SERIES = [
     "DGS30",
     "T10Y2Y",
     "T10Y3M",
+    "T5YIE",
+    "T10YIE",
     "DCOILWTICO",
     "DCOILBRENTEU",
 ]
