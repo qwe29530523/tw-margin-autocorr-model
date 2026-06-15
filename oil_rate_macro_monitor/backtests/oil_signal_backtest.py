@@ -15,6 +15,12 @@ DEFAULT_INPUT_PATH = BASE_DIR / "output" / "oil_rate_inflation_weekly_data.csv"
 DEFAULT_OUTPUT_PATH = BASE_DIR / "exports" / "oil_signal_backtest_summary.json"
 DEFAULT_HORIZONS_WEEKS = [4, 8, 13]
 DEFAULT_MIN_SAMPLES = 20
+RISK_ASSET_PROXY_COLUMNS = ["risk_asset_proxy", "spx", "spy", "equity_proxy"]
+RISK_OFF_DRAWDOWN_THRESHOLDS = {
+    4: -0.05,
+    8: -0.075,
+    13: -0.10,
+}
 SIGNAL_METADATA = {
     "oil_price_momentum": {
         "feature_role": "oil price direction and momentum",
@@ -78,6 +84,7 @@ SIGNAL_METADATA = {
             "breakeven_5y",
             "breakeven_10y",
             "five_year_breakeven",
+            "risk_asset_proxy",
         ],
     },
 }
@@ -97,7 +104,8 @@ TARGET_SPECS = (
         ],
         "change",
     ),
-    ("risk_asset_proxy_forward_return", ["risk_asset_proxy", "spx", "spy", "equity_proxy"], "return"),
+    ("risk_asset_proxy_forward_return", RISK_ASSET_PROXY_COLUMNS, "return"),
+    ("risk_asset_proxy_forward_drawdown", RISK_ASSET_PROXY_COLUMNS, "drawdown"),
 )
 
 REQUIRED_RESULT_FIELDS = {
@@ -109,6 +117,11 @@ REQUIRED_RESULT_FIELDS = {
     "average_forward_return",
     "median_forward_return",
     "average_forward_drawdown",
+    "risk_off_hit_rate",
+    "risk_off_threshold",
+    "target_missing_data_ratio",
+    "target_source",
+    "target_source_type",
     "information_coefficient",
     "missing_data_ratio",
     "suggested_direction",
@@ -217,14 +230,18 @@ def _load_weekly_input(source_path: Path) -> dict[str, Any]:
     system_root = _infer_system_root(source_path)
     processed = _load_processed_oil_and_rates(system_root)
     if not processed.empty:
+        input_source = "processed_oil_and_rates"
+        if processed.attrs.get("risk_asset_proxy_source_type") == "research_only":
+            input_source = "processed_oil_rates_with_yahoo_research_overlay"
         return {
             "status": "OK",
-            "source": "processed_oil_and_rates",
+            "source": input_source,
             "paths": processed.attrs.get("source_paths", []),
             "frame": processed,
             "notes": [
                 "Requested weekly CSV was missing; backtest loaded existing processed oil_engine/rates_curve outputs.",
                 "Processed daily frames were resampled to W-FRI using the last valid observation in each week.",
+                *processed.attrs.get("notes", []),
             ],
         }
 
@@ -257,7 +274,18 @@ def _load_processed_oil_and_rates(system_root: Path) -> pd.DataFrame:
     else:
         merged = pd.merge(oil, rates, on="date", how="outer", suffixes=("", "_rates"))
     weekly = _to_weekly(merged)
-    weekly.attrs["source_paths"] = [str(path) for path in [oil_path, rates_path] if path is not None]
+    source_paths = [str(path) for path in [oil_path, rates_path] if path is not None]
+    notes: list[str] = []
+    risk_path, risk_asset = _load_yahoo_risk_asset_proxy(system_root)
+    if not risk_asset.empty:
+        weekly = pd.merge(weekly, risk_asset, on="date", how="outer").sort_values("date").reset_index(drop=True)
+        weekly.attrs["risk_asset_proxy_source_type"] = "research_only"
+        source_paths.append(str(risk_path))
+        notes.append(
+            "Yahoo SPY overlay was loaded as a research-only risk asset target source; it is not production-grade scoring input."
+        )
+    weekly.attrs["source_paths"] = source_paths
+    weekly.attrs["notes"] = notes
     return weekly
 
 
@@ -272,6 +300,40 @@ def _read_processed_frame(processed_dir: Path, stem: str) -> tuple[Path | None, 
     if csv_path.exists():
         return csv_path, pd.read_csv(csv_path, low_memory=False)
     return None, pd.DataFrame()
+
+
+def _load_yahoo_risk_asset_proxy(system_root: Path) -> tuple[Path | None, pd.DataFrame]:
+    raw_dir = system_root / "data" / "raw"
+    for path in sorted(raw_dir.glob("yahoo_*.csv"), reverse=True):
+        try:
+            raw = pd.read_csv(path, low_memory=False)
+        except Exception:  # noqa: BLE001
+            continue
+        weekly = _yahoo_spy_to_weekly_proxy(raw)
+        if not weekly.empty:
+            return path, weekly
+    return None, pd.DataFrame()
+
+
+def _yahoo_spy_to_weekly_proxy(raw: pd.DataFrame) -> pd.DataFrame:
+    required = {"date", "ticker"}
+    if raw.empty or not required.issubset(raw.columns):
+        return pd.DataFrame()
+    price_column = "adj_close" if "adj_close" in raw.columns else "close" if "close" in raw.columns else None
+    if price_column is None:
+        return pd.DataFrame()
+    spy = raw[raw["ticker"].astype(str).str.upper() == "SPY"].copy()
+    if spy.empty:
+        return pd.DataFrame()
+    spy["date"] = pd.to_datetime(spy["date"], errors="coerce")
+    spy["risk_asset_proxy"] = pd.to_numeric(spy[price_column], errors="coerce")
+    spy = spy.dropna(subset=["date", "risk_asset_proxy"]).sort_values("date")
+    if spy.empty:
+        return pd.DataFrame()
+    weekly = spy.set_index("date")[["risk_asset_proxy"]].resample("W-FRI").last().dropna(how="all").reset_index()
+    weekly["risk_asset_proxy_source"] = "Yahoo SPY"
+    weekly["risk_asset_proxy_source_type"] = "research_only"
+    return weekly
 
 
 def _to_weekly(frame: pd.DataFrame) -> pd.DataFrame:
@@ -313,18 +375,30 @@ def _build_signal_features(frame: pd.DataFrame) -> dict[str, pd.Series]:
 def _build_forward_targets(frame: pd.DataFrame, horizons: list[int]) -> list[dict[str, Any]]:
     targets: list[dict[str, Any]] = []
     for target_name, candidates, method in TARGET_SPECS:
-        series = _numeric_first_existing(frame, candidates)
+        source_column, series = _numeric_first_existing_with_column(frame, candidates)
         if series is None or series.dropna().empty:
             continue
         for horizon in horizons:
-            target = _forward_return(series, horizon) if method == "return" else _forward_change(series, horizon)
-            drawdown = _forward_drawdown(series, horizon) if target_name == "risk_asset_proxy_forward_return" else None
+            forward_return = _forward_return(series, horizon) if method in {"return", "drawdown"} else None
+            drawdown = _forward_drawdown(series, horizon) if method == "drawdown" or target_name.startswith("risk_asset_proxy") else None
+            if method == "return":
+                target = forward_return
+            elif method == "drawdown":
+                target = drawdown
+            else:
+                target = _forward_change(series, horizon)
             targets.append(
                 {
                     "target_name": target_name,
                     "horizon_weeks": int(horizon),
                     "values": target,
                     "drawdown": drawdown,
+                    "forward_return": forward_return,
+                    "risk_off_threshold": _risk_off_drawdown_threshold(horizon)
+                    if target_name.startswith("risk_asset_proxy")
+                    else None,
+                    "target_source": _target_source(frame, source_column),
+                    "target_source_type": _target_source_type(frame, source_column),
                 }
             )
     return targets
@@ -354,11 +428,15 @@ def _evaluate_signal_target(
 ) -> dict[str, Any]:
     target_values = target["values"]
     drawdown = target.get("drawdown")
+    forward_return = target.get("forward_return")
+    risk_off_threshold = target.get("risk_off_threshold")
     missing_data_ratio = float(signal.isna().mean()) if len(signal) else 1.0
+    target_missing_data_ratio = float(target_values.isna().mean()) if len(target_values) else 1.0
     active = signal.notna() & target_values.notna() & (signal != 0)
     sample_count = int(active.sum())
     signed_target = target_values[active] * signal[active] if sample_count else pd.Series(dtype=float)
     information_coefficient = _information_coefficient(signal, target_values, active)
+    risk_off_values = _risk_off_values(forward_return, drawdown, risk_off_threshold)
 
     insufficient = sample_count < min_samples
     suggested_direction = _suggested_direction(signed_target, insufficient)
@@ -373,11 +451,24 @@ def _evaluate_signal_target(
         "horizon_weeks": int(target["horizon_weeks"]),
         "sample_count": sample_count,
         "hit_rate": _mean_or_none(signed_target > 0) if sample_count else None,
-        "average_forward_return": _mean_or_none(target_values[active]) if sample_count else None,
-        "median_forward_return": _median_or_none(target_values[active]) if sample_count else None,
+        "average_forward_return": _mean_or_none(forward_return[active])
+        if forward_return is not None and sample_count
+        else _mean_or_none(target_values[active])
+        if sample_count
+        else None,
+        "median_forward_return": _median_or_none(forward_return[active])
+        if forward_return is not None and sample_count
+        else _median_or_none(target_values[active])
+        if sample_count
+        else None,
         "average_forward_drawdown": _mean_or_none(drawdown[active]) if drawdown is not None and sample_count else None,
+        "risk_off_hit_rate": _mean_or_none(risk_off_values[active]) if risk_off_values is not None and sample_count else None,
+        "risk_off_threshold": risk_off_threshold,
         "information_coefficient": information_coefficient,
         "missing_data_ratio": round(missing_data_ratio, 4),
+        "target_missing_data_ratio": round(target_missing_data_ratio, 4),
+        "target_source": target.get("target_source"),
+        "target_source_type": target.get("target_source_type"),
         "suggested_direction": suggested_direction,
         "suggested_weight_range": _suggested_weight_range(usable_for_score, information_coefficient),
         "usable_for_score": bool(usable_for_score),
@@ -507,6 +598,7 @@ def _source_confidence_signal(frame: pd.DataFrame) -> pd.Series:
         "breakeven_5y",
         "breakeven_10y",
         "five_year_breakeven",
+        "risk_asset_proxy",
     ]
     available = [column for column in source_columns if column in frame.columns]
     if not available:
@@ -649,6 +741,51 @@ def _numeric_first_existing(frame: pd.DataFrame, candidates: list[str]) -> pd.Se
     return pd.to_numeric(series, errors="coerce")
 
 
+def _numeric_first_existing_with_column(frame: pd.DataFrame, candidates: list[str]) -> tuple[str | None, pd.Series | None]:
+    for column in candidates:
+        if column in frame.columns:
+            return column, pd.to_numeric(frame[column], errors="coerce")
+    return None, None
+
+
+def _target_source(frame: pd.DataFrame, source_column: str | None) -> str | None:
+    if source_column is None:
+        return None
+    source_metadata_column = f"{source_column}_source"
+    if source_metadata_column in frame.columns:
+        source = _first_non_empty(frame[source_metadata_column])
+        if source:
+            return source
+    if source_column == "risk_asset_proxy" and "risk_asset_proxy_source" in frame.columns:
+        source = _first_non_empty(frame["risk_asset_proxy_source"])
+        if source:
+            return source
+    return f"input_column:{source_column}"
+
+
+def _target_source_type(frame: pd.DataFrame, source_column: str | None) -> str | None:
+    if source_column is None:
+        return None
+    source_type_column = f"{source_column}_source_type"
+    if source_type_column in frame.columns:
+        source_type = _first_non_empty(frame[source_type_column])
+        if source_type:
+            return source_type
+    if source_column == "risk_asset_proxy" and "risk_asset_proxy_source_type" in frame.columns:
+        source_type = _first_non_empty(frame["risk_asset_proxy_source_type"])
+        if source_type:
+            return source_type
+    return "input"
+
+
+def _first_non_empty(series: pd.Series) -> str | None:
+    values = series.dropna()
+    if values.empty:
+        return None
+    text = str(values.iloc[0]).strip()
+    return text or None
+
+
 def _numeric_column(frame: pd.DataFrame, column: str) -> pd.Series:
     if column not in frame.columns:
         return pd.Series(np.nan, index=frame.index, dtype=float)
@@ -742,6 +879,37 @@ def _forward_return(series: pd.Series, horizon: int) -> pd.Series:
 
 def _forward_change(series: pd.Series, horizon: int) -> pd.Series:
     return series.shift(-horizon) - series
+
+
+def _risk_off_drawdown_threshold(horizon: int) -> float:
+    if horizon <= 4:
+        return RISK_OFF_DRAWDOWN_THRESHOLDS[4]
+    if horizon <= 8:
+        return RISK_OFF_DRAWDOWN_THRESHOLDS[8]
+    return RISK_OFF_DRAWDOWN_THRESHOLDS[13]
+
+
+def _risk_off_values(
+    forward_return: pd.Series | None,
+    drawdown: pd.Series | None,
+    threshold: float | None,
+) -> pd.Series | None:
+    if forward_return is None and drawdown is None:
+        return None
+    index = forward_return.index if forward_return is not None else drawdown.index
+    values = pd.Series(np.nan, index=index, dtype=float)
+    risk_off = pd.Series(False, index=index)
+    has_value = pd.Series(False, index=index)
+    if forward_return is not None:
+        return_available = forward_return.notna()
+        has_value = has_value | return_available
+        risk_off = risk_off | (return_available & (forward_return < 0))
+    if drawdown is not None and threshold is not None:
+        drawdown_available = drawdown.notna()
+        has_value = has_value | drawdown_available
+        risk_off = risk_off | (drawdown_available & (drawdown <= threshold))
+    values.loc[has_value] = risk_off.loc[has_value].astype(float)
+    return values
 
 
 def _forward_drawdown(series: pd.Series, horizon: int) -> pd.Series:

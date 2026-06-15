@@ -38,6 +38,8 @@ WTI curve state 若缺資料，會明確標記 missing，不會 forward fill，�
 
 缺少的 target 會被跳過，不會讓流程 crash。
 
+Risk asset proxy 第一版優先使用 SPY。若 backtest 從 `data/raw/yahoo_*.csv` 讀到 SPY，summary 會標記 `target_source=Yahoo SPY` 與 `target_source_type=research_only`。Yahoo overlay 只作為 research-only target source，不是 production-grade market data source，也不應被直接用於 production scoring。
+
 ## Output
 
 預設輸出：

@@ -81,6 +81,7 @@ def test_backtest_summary_schema_contains_required_fields_and_targets(tmp_path: 
         "ten_year_forward_change",
         "breakeven_inflation_forward_change",
         "risk_asset_proxy_forward_return",
+        "risk_asset_proxy_forward_drawdown",
     }.issubset(target_names)
 
     saved = json.loads(output_path.read_text(encoding="utf-8"))
@@ -134,6 +135,48 @@ def test_backtest_uses_processed_breakeven_10y_as_fallback_target(tmp_path: Path
     assert "breakeven_inflation_forward_change" not in unavailable_target_names
 
 
+def test_risk_asset_proxy_outputs_return_drawdown_and_risk_off_metrics(tmp_path: Path) -> None:
+    frame = _weekly_frame(rows=40)
+    frame["risk_asset_proxy"] = [
+        100,
+        98,
+        95,
+        97,
+        94,
+        96,
+        99,
+        101,
+        103,
+        100,
+    ] * 4
+    input_path = _write_weekly_csv(tmp_path, frame)
+    output_path = tmp_path / "oil_signal_backtest_summary.json"
+
+    summary = run_oil_signal_backtest(
+        input_path=input_path,
+        output_path=output_path,
+        horizons_weeks=[4],
+        min_samples=5,
+    )
+
+    target_names = {item["target_name"] for item in summary["results"]}
+    risk_return_results = [
+        item for item in summary["results"] if item["target_name"] == "risk_asset_proxy_forward_return"
+    ]
+    risk_drawdown_results = [
+        item for item in summary["results"] if item["target_name"] == "risk_asset_proxy_forward_drawdown"
+    ]
+
+    assert "risk_asset_proxy_forward_return" in target_names
+    assert "risk_asset_proxy_forward_drawdown" in target_names
+    assert risk_return_results
+    assert risk_drawdown_results
+    assert all(item["average_forward_drawdown"] is not None for item in risk_return_results)
+    assert all(item["risk_off_hit_rate"] is not None for item in risk_return_results)
+    assert all(item["risk_off_threshold"] == -0.05 for item in risk_return_results)
+    assert all(0.0 < item["target_missing_data_ratio"] < 1.0 for item in risk_return_results)
+
+
 def test_insufficient_data_is_unusable_instead_of_scored(tmp_path: Path) -> None:
     input_path = _write_weekly_csv(tmp_path, _weekly_frame(rows=6))
     output_path = tmp_path / "oil_signal_backtest_summary.json"
@@ -179,7 +222,55 @@ def test_missing_legacy_output_path_discovers_processed_oil_and_rates(tmp_path: 
     assert {
         "breakeven_inflation_forward_change",
         "risk_asset_proxy_forward_return",
+        "risk_asset_proxy_forward_drawdown",
     }.issubset(unavailable_target_names)
+
+
+def test_missing_legacy_output_path_discovers_research_only_yahoo_spy_proxy(tmp_path: Path) -> None:
+    system_root = tmp_path / "oil_rate_macro_monitor"
+    processed_dir = system_root / "data" / "processed"
+    raw_dir = system_root / "data" / "raw"
+    processed_dir.mkdir(parents=True)
+    raw_dir.mkdir(parents=True)
+    frame = _weekly_frame(rows=40).drop(columns=["risk_asset_proxy"])
+    frame[["date", "wti", "oil_regime", "product_inventory_pressure", "macro_regime"]].to_csv(
+        processed_dir / "oil_engine.csv",
+        index=False,
+    )
+    frame[["date", "ten_year", "five_year_breakeven"]].to_csv(processed_dir / "rates_curve.csv", index=False)
+    yahoo_dates = pd.date_range("2025-01-01", periods=280, freq="D")
+    yahoo = pd.DataFrame(
+        {
+            "date": yahoo_dates,
+            "ticker": ["SPY"] * len(yahoo_dates),
+            "open": [100 + index * 0.1 for index in range(len(yahoo_dates))],
+            "high": [101 + index * 0.1 for index in range(len(yahoo_dates))],
+            "low": [99 + index * 0.1 for index in range(len(yahoo_dates))],
+            "close": [100 + index * 0.1 for index in range(len(yahoo_dates))],
+            "adj_close": [100 + index * 0.1 for index in range(len(yahoo_dates))],
+            "volume": [1000] * len(yahoo_dates),
+        }
+    )
+    yahoo.to_csv(raw_dir / "yahoo_20250101_000000.csv", index=False)
+
+    summary = run_oil_signal_backtest(
+        input_path=system_root / "output" / "oil_rate_inflation_weekly_data.csv",
+        output_path=system_root / "exports" / "oil_signal_backtest_summary.json",
+        horizons_weeks=[4],
+        min_samples=5,
+    )
+
+    target_names = {item["target_name"] for item in summary["results"]}
+    risk_results = [item for item in summary["results"] if item["target_name"] == "risk_asset_proxy_forward_return"]
+
+    assert summary["input_status"] == "OK"
+    assert summary["input_source"] == "processed_oil_rates_with_yahoo_research_overlay"
+    assert "risk_asset_proxy_forward_return" in target_names
+    assert "risk_asset_proxy_forward_drawdown" in target_names
+    assert risk_results
+    assert all(item["target_source"] == "Yahoo SPY" for item in risk_results)
+    assert all(item["target_source_type"] == "research_only" for item in risk_results)
+    assert any("research-only" in note for note in summary["notes"])
 
 
 def test_physical_tightness_can_be_derived_from_inventory_refinery_and_exports(tmp_path: Path) -> None:
