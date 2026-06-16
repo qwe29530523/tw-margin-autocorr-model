@@ -1,0 +1,44 @@
+food_cpi:
+  source: BLS
+  series_id: CUUR0000SAF1
+  description: Food CPI proxy
+
+food_at_home_cpi:
+  source: FRED
+  series_id: CUSR0000SAF11
+  description: CPI food at home
+
+food_ppi:
+  source: FRED
+  series_id: PCU311311
+  description: Food manufacturing PPI
+
+wheat_price:
+  source: FRED
+  series_id: PWHEAMTUSDM
+  description: Global wheat price proxy
+
+corn_price:
+  source: FRED
+  series_id: PMAIZMTUSDM
+  description: Global corn price proxy
+
+soybean_price:
+  source: FRED
+  series_id: PSOYBUSDM
+  description: Global soybean price proxy
+
+rice_price:
+  source: FRED
+  series_id: PRICENPQUSDM
+  description: Global rice price proxy
+
+beef_price:
+  source: FRED
+  series_id: PBEEFUSDM
+  description: Global beef price proxy
+
+meat_ppi:
+  source: FRED
+  series_id: WPS0221
+  description: Meats PPI proxy

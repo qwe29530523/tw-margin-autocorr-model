@@ -27,3 +27,21 @@ The Energy / Oil component has a Phase 2B design-only spec at `oil_rate_macro_mo
 ## Current Status
 
 The current oil backtest layer is a Supporting Research Layer. It can evaluate whether oil-related signals deserve future production use, but it does not create production score weights and does not change any production macro decision logic.
+
+## Food / Agriculture Component Status
+
+The Food / Agriculture component now has a V1 data contract in `macro_research_system/config/food_inflation_series.yaml` and a design note at `macro_research_system/docs/food_inflation_pressure_design.md`.
+
+V1 candidate signals are:
+
+- `grain_pressure`
+- `meat_protein_pressure`
+- `food_cpi_trend`
+- `food_ppi_pipeline_pressure`
+- `food_commodity_momentum`
+
+A Food signal backtest framework exists as a Supporting Research Layer. It evaluates candidate signals against forward food CPI, headline CPI, breakeven inflation, rates, and risk-asset drawdown targets when those target columns are available.
+
+There is no Food production score yet. Composite weights remain gated by evidence, missing-data diagnostics, target availability, and test coverage.
+
+Energy / Oil WTI curve real-data validation remains pending external vendor/API credentials. The Food component does not close or replace the Energy / Oil WTI curve work.
