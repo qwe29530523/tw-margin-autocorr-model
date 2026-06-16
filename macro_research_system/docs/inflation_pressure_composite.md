@@ -68,3 +68,28 @@ Default Shelter backtest horizons include 1 month, 3 months, 6 months, and 12 mo
 There is no Shelter production score yet. Composite weights remain gated by evidence, missing-data diagnostics, target availability, and test coverage.
 
 Energy / Oil WTI curve real-data validation remains pending external vendor/API credentials. The Shelter component does not close or replace the Energy / Oil WTI curve work.
+
+## Services / Wage Component Status
+
+The Services / Wage component now has a V1 data contract in `macro_research_system/config/services_wage_inflation_series.yaml` and a design note at `macro_research_system/docs/services_wage_inflation_pressure_design.md`.
+
+V1 candidate signals are:
+
+- `services_cpi_trend`
+- `core_services_pressure`
+- `supercore_services_proxy`
+- `wage_growth_pressure`
+- `labor_cost_pressure`
+- `labor_market_tightness`
+- `quits_pressure`
+- `payroll_momentum`
+- `claims_stress_inverse`
+- `services_wage_pipeline_pressure`
+
+A Services / Wage signal backtest framework exists as a Supporting Research Layer. It evaluates candidate signals against forward services CPI, core CPI, headline CPI, breakeven inflation, rates, and risk-asset drawdown targets when those target columns are available.
+
+Default Services / Wage backtest horizons include 1 month, 3 months, 6 months, and 12 months. The 3-month, 6-month, and 12-month windows are more important than the 1-month window because services and wage inflation tend to be sticky and lagged.
+
+There is no Services / Wage production score yet. Composite weights remain gated by evidence, missing-data diagnostics, target availability, and test coverage.
+
+Energy / Oil WTI curve real-data validation remains pending external vendor/API credentials. The Services / Wage component does not close or replace the Energy / Oil WTI curve work.

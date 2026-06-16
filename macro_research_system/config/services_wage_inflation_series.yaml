@@ -1,0 +1,68 @@
+core_services_ex_shelter_proxy:
+  source: BLS
+  series_id: CUUR0000SASLE
+  description: Core services excluding shelter proxy
+
+average_hourly_earnings:
+  source: FRED
+  series_id: CES0500000003
+  description: Average hourly earnings of all employees, total private
+
+employment_cost_index_wages:
+  source: FRED
+  series_id: ECIWAG
+  description: Employment Cost Index wages and salaries
+
+unit_labor_cost:
+  source: FRED
+  series_id: ULCNFB
+  description: Nonfarm business sector unit labor cost
+
+compensation_per_hour:
+  source: FRED
+  series_id: COMPNFB
+  description: Nonfarm business sector compensation per hour
+
+nonfarm_payrolls:
+  source: FRED
+  series_id: PAYEMS
+  description: Total nonfarm payrolls
+
+unemployment_rate:
+  source: FRED
+  series_id: UNRATE
+  description: Civilian unemployment rate
+
+job_openings:
+  source: FRED
+  series_id: JTSJOL
+  description: Job openings total nonfarm
+
+quits_rate:
+  source: FRED
+  series_id: JTSQUR
+  description: Quits rate total nonfarm
+
+initial_claims:
+  source: FRED
+  series_id: ICSA
+  description: Initial unemployment claims
+
+continuing_claims:
+  source: FRED
+  series_id: CCSA
+  description: Continued unemployment claims
+
+metadata_todo:
+  medical_services_cpi:
+    source: BLS_or_FRED
+    series_id: TODO_VERIFY
+    description: Verify official medical care services CPI component before implementation
+  transportation_services_cpi:
+    source: BLS_or_FRED
+    series_id: TODO_VERIFY
+    description: Verify official transportation services CPI component before implementation
+  recreation_services_cpi:
+    source: BLS_or_FRED
+    series_id: TODO_VERIFY
+    description: Verify official recreation services CPI component before implementation
