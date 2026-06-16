@@ -39,6 +39,8 @@ Excluded for now:
 - `breakeven_inflation_forward_change`: unavailable target.
 - `risk_asset_proxy_forward_return`: unavailable target.
 
+MetalPriceAPI can be used as a research-only benchmark fallback for WTI, Brent, natural gas, and gasoline headline benchmark collection. It is not a CME DataMine replacement, does not provide CL individual contract-month settlements, cannot create a WTI M1/M2/M3 ladder, and must not be used for a production curve signal. CME DataMine sample parsing and formal WTI curve validation remain separate work.
+
 ## Current Backtest Evidence
 
 Phase 2A established that `physical_tightness` and `product_inventory_pressure` were originally duplicate-like. Their derivations were separated in the backtest layer.

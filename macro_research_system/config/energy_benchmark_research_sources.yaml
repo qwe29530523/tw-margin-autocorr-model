@@ -1,0 +1,14 @@
+source_name: MetalPriceAPI
+source_type: research_only_benchmark
+api_key_env: METALPRICE_API_KEY
+base: USD
+symbols:
+  - WTI
+  - BRENT
+  - NATURALGAS
+  - GASOLINE
+not_usable_for:
+  - CL individual contract-month settlement
+  - WTI M1/M2/M3 futures curve
+  - CME official settlement curve
+  - production curve signal

@@ -28,6 +28,8 @@ The Energy / Oil component has a Phase 2B design-only spec at `oil_rate_macro_mo
 
 The current oil backtest layer is a Supporting Research Layer. It can evaluate whether oil-related signals deserve future production use, but it does not create production score weights and does not change any production macro decision logic.
 
+MetalPriceAPI may be used only as a research-only benchmark source for WTI, Brent, natural gas, and gasoline headline benchmark collection. It cannot replace CME DataMine or another official futures vendor for CL individual contract-month settlements, cannot produce a WTI M1/M2/M3 ladder, and cannot produce an official contango/backwardation curve signal. CME DataMine sample parsing and formal WTI curve validation remain separate work. Yahoo is not a production source for this layer.
+
 ## Food / Agriculture Component Status
 
 The Food / Agriculture component now has a V1 data contract in `macro_research_system/config/food_inflation_series.yaml` and a design note at `macro_research_system/docs/food_inflation_pressure_design.md`.
