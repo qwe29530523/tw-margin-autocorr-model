@@ -45,3 +45,26 @@ A Food signal backtest framework exists as a Supporting Research Layer. It evalu
 There is no Food production score yet. Composite weights remain gated by evidence, missing-data diagnostics, target availability, and test coverage.
 
 Energy / Oil WTI curve real-data validation remains pending external vendor/API credentials. The Food component does not close or replace the Energy / Oil WTI curve work.
+
+## Shelter / Housing Component Status
+
+The Shelter / Housing component now has a V1 data contract in `macro_research_system/config/shelter_inflation_series.yaml` and a design note at `macro_research_system/docs/shelter_inflation_pressure_design.md`.
+
+V1 candidate signals are:
+
+- `shelter_cpi_trend`
+- `rent_pressure`
+- `oer_pressure`
+- `home_price_momentum`
+- `mortgage_rate_pressure`
+- `housing_activity_pressure`
+- `affordability_stress`
+- `shelter_pipeline_pressure`
+
+A Shelter signal backtest framework exists as a Supporting Research Layer. It evaluates candidate signals against forward shelter CPI, headline CPI, core CPI, breakeven inflation, rates, and risk-asset drawdown targets when those target columns are available.
+
+Default Shelter backtest horizons include 1 month, 3 months, 6 months, and 12 months. The 6-month and 12-month windows are important because shelter inflation tends to lag home prices, rent contracts, and financing conditions.
+
+There is no Shelter production score yet. Composite weights remain gated by evidence, missing-data diagnostics, target availability, and test coverage.
+
+Energy / Oil WTI curve real-data validation remains pending external vendor/API credentials. The Shelter component does not close or replace the Energy / Oil WTI curve work.

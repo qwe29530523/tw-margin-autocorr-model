@@ -1,0 +1,54 @@
+shelter_cpi:
+  source: BLS
+  series_id: CUUR0000SAH1
+  description: CPI shelter proxy
+
+shelter_cpi_sa:
+  source: FRED
+  series_id: CUSR0000SAH1
+  description: CPI shelter seasonally adjusted
+
+rent_cpi:
+  source: FRED
+  series_id: CUUR0000SEHA
+  description: CPI rent of primary residence
+
+owners_equivalent_rent:
+  source: FRED
+  series_id: CUUR0000SEHC
+  description: Owners equivalent rent
+
+mortgage_rate_30y:
+  source: FRED
+  series_id: MORTGAGE30US
+  description: 30-year fixed mortgage rate
+
+mortgage_rate_15y:
+  source: FRED
+  series_id: MORTGAGE15US
+  description: 15-year fixed mortgage rate
+
+case_shiller_home_price:
+  source: FRED
+  series_id: CSUSHPISA
+  description: Case-Shiller U.S. national home price index
+
+fhfa_home_price:
+  source: FRED
+  series_id: USSTHPI
+  description: FHFA U.S. house price index
+
+housing_starts:
+  source: FRED
+  series_id: HOUST
+  description: Housing starts
+
+building_permits:
+  source: FRED
+  series_id: PERMIT
+  description: Building permits
+
+new_home_sales:
+  source: FRED
+  series_id: HSN1F
+  description: New one-family houses sold
