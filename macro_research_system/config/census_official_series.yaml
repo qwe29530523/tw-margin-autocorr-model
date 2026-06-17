@@ -1,0 +1,104 @@
+housing_starts: []
+
+building_permits: []
+
+construction_spending: []
+
+new_residential_sales: []
+
+retail_trade_extension: []
+
+todo_verify:
+  housing_starts:
+    housing_starts_total:
+      series_id: TODO_VERIFY
+      dataset: TODO_VERIFY
+      variables: TODO_VERIFY
+      geography: TODO_VERIFY
+      active: false
+      status: TODO_VERIFY
+      description: Verify official Census housing starts total dataset, variables, geography, and frequency before activating.
+    housing_starts_single_family:
+      series_id: TODO_VERIFY
+      dataset: TODO_VERIFY
+      variables: TODO_VERIFY
+      geography: TODO_VERIFY
+      active: false
+      status: TODO_VERIFY
+      description: Verify official Census single-family housing starts route before activating.
+    housing_starts_multi_family:
+      series_id: TODO_VERIFY
+      dataset: TODO_VERIFY
+      variables: TODO_VERIFY
+      geography: TODO_VERIFY
+      active: false
+      status: TODO_VERIFY
+      description: Verify official Census multi-family housing starts route before activating.
+  building_permits:
+    building_permits_total:
+      series_id: TODO_VERIFY
+      dataset: TODO_VERIFY
+      variables: TODO_VERIFY
+      geography: TODO_VERIFY
+      active: false
+      status: TODO_VERIFY
+      description: Verify official Census building permits total dataset, variables, geography, and frequency before activating.
+    building_permits_single_family:
+      series_id: TODO_VERIFY
+      dataset: TODO_VERIFY
+      variables: TODO_VERIFY
+      geography: TODO_VERIFY
+      active: false
+      status: TODO_VERIFY
+      description: Verify official Census single-family building permits route before activating.
+    building_permits_multi_family:
+      series_id: TODO_VERIFY
+      dataset: TODO_VERIFY
+      variables: TODO_VERIFY
+      geography: TODO_VERIFY
+      active: false
+      status: TODO_VERIFY
+      description: Verify official Census multi-family building permits route before activating.
+  construction_spending:
+    total_construction_spending:
+      series_id: TODO_VERIFY
+      dataset: TODO_VERIFY
+      variables: TODO_VERIFY
+      geography: TODO_VERIFY
+      active: false
+      status: TODO_VERIFY
+      description: Verify official Census total construction spending route before activating.
+    residential_construction_spending:
+      series_id: TODO_VERIFY
+      dataset: TODO_VERIFY
+      variables: TODO_VERIFY
+      geography: TODO_VERIFY
+      active: false
+      status: TODO_VERIFY
+      description: Verify official Census residential construction spending route before activating.
+    private_residential_construction_spending:
+      series_id: TODO_VERIFY
+      dataset: TODO_VERIFY
+      variables: TODO_VERIFY
+      geography: TODO_VERIFY
+      active: false
+      status: TODO_VERIFY
+      description: Verify official Census private residential construction spending route before activating.
+  new_residential_sales:
+    new_home_sales:
+      series_id: TODO_VERIFY
+      dataset: TODO_VERIFY
+      variables: TODO_VERIFY
+      geography: TODO_VERIFY
+      active: false
+      status: TODO_VERIFY
+      description: Verify official Census new residential sales route before activating.
+  retail_trade_extension:
+    retail_sales_total:
+      series_id: TODO_VERIFY
+      dataset: TODO_VERIFY
+      variables: TODO_VERIFY
+      geography: TODO_VERIFY
+      active: false
+      status: TODO_VERIFY
+      description: Verify official Census retail sales or trade route before activating.

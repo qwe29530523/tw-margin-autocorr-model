@@ -74,6 +74,18 @@ This framework does not create a production composite score. It does not close t
 
 Unverified EIA series IDs and routes must remain marked as `TODO_VERIFY` and inactive until verified.
 
+## Census Official Housing / Real Economy Ingestion
+
+Phase 2E-5E introduces Census `official_public_real_economy` ingestion using the same normalized macro series schema.
+
+Census can support Shelter / Housing pipeline context and real-economy extensions through housing starts, building permits, construction spending, new residential sales, retail trade, and related datasets where official routes, variables, geography, and frequency are verified.
+
+Fetchers return normalized pandas DataFrames for research and validation workflows; they do not write committed data files. The root `.env` remains local-only and ignored. `.env.example` contains empty placeholders only. Tests for Census official ingestion use mocked network responses and must not call external APIs.
+
+This framework does not create a production composite score. It does not close the Energy / Oil WTI M1/M2/M3 futures curve blocker. Census data cannot replace CME DataMine or another licensed vendor for CL individual contract-month settlements.
+
+Unverified Census routes and variables must remain marked as `TODO_VERIFY` and inactive until verified.
+
 ## Food / Agriculture Component Status
 
 The Food / Agriculture component now has a V1 data contract in `macro_research_system/config/food_inflation_series.yaml` and a design note at `macro_research_system/docs/food_inflation_pressure_design.md`.
