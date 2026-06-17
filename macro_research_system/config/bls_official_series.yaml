@@ -1,0 +1,149 @@
+headline_core_cpi:
+  - series_id: CUUR0000SA0
+    series_name: CPI All Urban Consumers, All Items
+    group: headline_core_cpi
+    frequency_hint: monthly
+    unit_hint: index
+    seasonal_adjustment_hint: not seasonally adjusted
+    source_name: BLS
+    source_type: official_public_labor_inflation
+    feature_role: headline_cpi
+  - series_id: CUUR0000SA0L1E
+    series_name: CPI All Urban Consumers, All Items Less Food and Energy
+    group: headline_core_cpi
+    frequency_hint: monthly
+    unit_hint: index
+    seasonal_adjustment_hint: not seasonally adjusted
+    source_name: BLS
+    source_type: official_public_labor_inflation
+    feature_role: core_cpi_ex_food_energy
+
+food_inflation:
+  - series_id: CUUR0000SAF1
+    series_name: CPI Food
+    group: food_inflation
+    frequency_hint: monthly
+    unit_hint: index
+    seasonal_adjustment_hint: not seasonally adjusted
+    source_name: BLS
+    source_type: official_public_labor_inflation
+    feature_role: food_cpi
+  - series_id: CUUR0000SAF11
+    series_name: CPI Food at Home
+    group: food_inflation
+    frequency_hint: monthly
+    unit_hint: index
+    seasonal_adjustment_hint: not seasonally adjusted
+    source_name: BLS
+    source_type: official_public_labor_inflation
+    feature_role: food_at_home_cpi
+
+energy_inflation:
+  - series_id: CUUR0000SA0E
+    series_name: CPI Energy
+    group: energy_inflation
+    frequency_hint: monthly
+    unit_hint: index
+    seasonal_adjustment_hint: not seasonally adjusted
+    source_name: BLS
+    source_type: official_public_labor_inflation
+    feature_role: energy_cpi
+  - series_id: CUUR0000SETB01
+    series_name: CPI Gasoline, All Types
+    group: energy_inflation
+    frequency_hint: monthly
+    unit_hint: index
+    seasonal_adjustment_hint: not seasonally adjusted
+    source_name: BLS
+    source_type: official_public_labor_inflation
+    feature_role: gasoline_cpi
+
+shelter_inflation:
+  - series_id: CUUR0000SAH1
+    series_name: CPI Shelter
+    group: shelter_inflation
+    frequency_hint: monthly
+    unit_hint: index
+    seasonal_adjustment_hint: not seasonally adjusted
+    source_name: BLS
+    source_type: official_public_labor_inflation
+    feature_role: shelter_cpi
+  - series_id: CUUR0000SEHA
+    series_name: CPI Rent of Primary Residence
+    group: shelter_inflation
+    frequency_hint: monthly
+    unit_hint: index
+    seasonal_adjustment_hint: not seasonally adjusted
+    source_name: BLS
+    source_type: official_public_labor_inflation
+    feature_role: rent_cpi
+  - series_id: CUUR0000SEHC
+    series_name: CPI Owners Equivalent Rent
+    group: shelter_inflation
+    frequency_hint: monthly
+    unit_hint: index
+    seasonal_adjustment_hint: not seasonally adjusted
+    source_name: BLS
+    source_type: official_public_labor_inflation
+    feature_role: owners_equivalent_rent_cpi
+
+services_wage_inflation:
+  - series_id: CUUR0000SASLE
+    series_name: CPI Services Less Energy Services
+    group: services_wage_inflation
+    frequency_hint: monthly
+    unit_hint: index
+    seasonal_adjustment_hint: not seasonally adjusted
+    source_name: BLS
+    source_type: official_public_labor_inflation
+    feature_role: services_cpi_proxy
+  - series_id: CES0500000003
+    series_name: Average Hourly Earnings of All Employees, Total Private
+    group: services_wage_inflation
+    frequency_hint: monthly
+    unit_hint: dollars per hour
+    seasonal_adjustment_hint: seasonally adjusted
+    source_name: BLS
+    source_type: official_public_labor_inflation
+    feature_role: wage_growth
+  - series_id: LNS14000000
+    series_name: Unemployment Rate
+    group: services_wage_inflation
+    frequency_hint: monthly
+    unit_hint: percent
+    seasonal_adjustment_hint: seasonally adjusted
+    source_name: BLS
+    source_type: official_public_labor_inflation
+    feature_role: labor_market_slack
+  - series_id: CES0000000001
+    series_name: All Employees, Total Nonfarm
+    group: services_wage_inflation
+    frequency_hint: monthly
+    unit_hint: thousands of persons
+    seasonal_adjustment_hint: seasonally adjusted
+    source_name: BLS
+    source_type: official_public_labor_inflation
+    feature_role: payroll_momentum
+
+todo_verify:
+  food_inflation:
+    meats_poultry_fish_eggs_cpi:
+      series_id: TODO_VERIFY
+      description: Verify official BLS CPI component ID before activating.
+    cereals_bakery_cpi:
+      series_id: TODO_VERIFY
+      description: Verify official BLS CPI component ID before activating.
+  energy_inflation:
+    fuel_oil_cpi:
+      series_id: TODO_VERIFY
+      description: Verify official BLS CPI component ID before activating.
+  services_wage_inflation:
+    employment_cost_index_wages:
+      series_id: TODO_VERIFY
+      description: Verify official BLS ECI wage series ID before activating.
+    jolts_openings:
+      series_id: TODO_VERIFY
+      description: Verify official BLS JOLTS openings series ID before activating.
+    jolts_quits:
+      series_id: TODO_VERIFY
+      description: Verify official BLS JOLTS quits series ID before activating.

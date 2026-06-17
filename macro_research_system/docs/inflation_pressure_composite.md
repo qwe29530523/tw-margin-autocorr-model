@@ -50,6 +50,18 @@ The root `.env` remains local-only and ignored. `.env.example` contains empty pl
 
 This framework does not create a production composite score. It also does not close the Energy / Oil WTI M1/M2/M3 futures curve blocker. FRED observations cannot replace CME DataMine or another licensed vendor for CL individual contract-month settlements.
 
+## BLS Official Inflation / Labor Ingestion
+
+Phase 2E-5C introduces BLS `official_public_labor_inflation` ingestion using the same normalized macro series schema.
+
+BLS can support CPI components, labor, wage, and JOLTS-related extensions where official series IDs are verified. Fetchers return normalized pandas DataFrames for research and validation workflows; they do not write committed data files.
+
+The root `.env` remains local-only and ignored. `.env.example` contains empty placeholders only. Tests for BLS official ingestion use mocked network responses and must not call external APIs.
+
+This framework does not create a production composite score. It does not close the Energy / Oil WTI M1/M2/M3 futures curve blocker. BLS data cannot replace CME DataMine or another licensed vendor for CL individual contract-month settlements.
+
+Unverified BLS component IDs must remain marked as `TODO_VERIFY` in metadata and must not be activated as fetchable official series until verified.
+
 ## Food / Agriculture Component Status
 
 The Food / Agriculture component now has a V1 data contract in `macro_research_system/config/food_inflation_series.yaml` and a design note at `macro_research_system/docs/food_inflation_pressure_design.md`.
