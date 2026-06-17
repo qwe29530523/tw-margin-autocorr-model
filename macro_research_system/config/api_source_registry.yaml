@@ -1,0 +1,73 @@
+FRED:
+  source_name: FRED
+  source_type: official_public_macro
+  api_key_env: FRED_API_KEY
+  usable_for:
+    - CPI
+    - PCE
+    - rates
+    - breakeven inflation
+    - mortgage rates
+    - housing proxy series
+    - macro targets
+
+BLS:
+  source_name: BLS
+  source_type: official_public_labor_inflation
+  api_key_env: BLS_API_KEY
+  usable_for:
+    - CPI components
+    - PPI
+    - wage data
+    - employment data
+    - ECI
+    - JOLTS
+
+EIA:
+  source_name: EIA
+  source_type: official_public_energy
+  api_key_env: EIA_API_KEY
+  usable_for:
+    - crude oil inventory
+    - crude oil production
+    - gasoline
+    - diesel
+    - natural gas
+    - energy supply-demand
+
+MetalPriceAPI:
+  source_name: MetalPriceAPI
+  source_type: research_only_benchmark
+  api_key_env: METALPRICE_API_KEY
+  usable_for:
+    - WTI benchmark
+    - Brent benchmark
+    - natural gas benchmark
+    - gasoline benchmark
+  not_usable_for:
+    - CL individual contract-month settlement
+    - WTI M1/M2/M3 futures curve
+    - CME official settlement curve
+    - production curve signal
+
+Census:
+  source_name: Census
+  source_type: official_public_real_economy
+  api_key_env: CENSUS_API_KEY
+  usable_for:
+    - housing starts
+    - building permits
+    - construction spending
+    - retail and trade extension
+    - real economy extension
+
+CME DataMine:
+  source_name: CME DataMine
+  source_type: official_datamine
+  api_key_env: null
+  status: pending_vendor_or_licensed_delivery
+  usable_for:
+    - CL individual contract-month settlement
+    - WTI M1/M2/M3 futures curve
+    - official contango/backwardation curve
+  blocker_status: open

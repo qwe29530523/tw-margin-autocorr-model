@@ -30,6 +30,16 @@ The current oil backtest layer is a Supporting Research Layer. It can evaluate w
 
 MetalPriceAPI may be used only as a research-only benchmark source for WTI, Brent, natural gas, and gasoline headline benchmark collection. It cannot replace CME DataMine or another official futures vendor for CL individual contract-month settlements, cannot produce a WTI M1/M2/M3 ladder, and cannot produce an official contango/backwardation curve signal. CME DataMine sample parsing and formal WTI curve validation remain separate work. Yahoo is not a production source for this layer.
 
+## Official / Research Source Registry
+
+The source registry in `macro_research_system/config/api_source_registry.yaml` separates official/public sources from research-only benchmark sources.
+
+- FRED, BLS, EIA, and Census are official/public sources for macro, inflation, energy, labor, housing, and real-economy data.
+- MetalPriceAPI is a research-only benchmark fallback for WTI, Brent, natural gas, and gasoline headline benchmark collection.
+- CME DataMine remains pending for official WTI futures curve validation and CL individual contract-month settlement data.
+
+The environment preflight utility reports only boolean/configured status and safe metadata. It must never print, return, or write actual API key values. `.env`, secrets, and credentials must stay untracked and must never be committed.
+
 ## Food / Agriculture Component Status
 
 The Food / Agriculture component now has a V1 data contract in `macro_research_system/config/food_inflation_series.yaml` and a design note at `macro_research_system/docs/food_inflation_pressure_design.md`.
