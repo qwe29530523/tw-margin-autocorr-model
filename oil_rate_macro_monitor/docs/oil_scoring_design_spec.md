@@ -41,6 +41,8 @@ Excluded for now:
 
 MetalPriceAPI can be used as a research-only benchmark fallback for WTI, Brent, natural gas, and gasoline headline benchmark collection. It is not a CME DataMine replacement, does not provide CL individual contract-month settlements, cannot create a WTI M1/M2/M3 ladder, and must not be used for a production curve signal. CME DataMine sample parsing and formal WTI curve validation remain separate work.
 
+EIA is an official energy fundamentals source for inventories, production, refinery activity, product supplied, storage, and spot benchmark context where series IDs or routes are verified. EIA spot, benchmark, inventory, or physical-fundamental series are not a CME DataMine replacement and cannot create an official CL M1/M2/M3 futures curve.
+
 ## Current Backtest Evidence
 
 Phase 2A established that `physical_tightness` and `product_inventory_pressure` were originally duplicate-like. Their derivations were separated in the backtest layer.

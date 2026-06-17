@@ -62,6 +62,18 @@ This framework does not create a production composite score. It does not close t
 
 Unverified BLS component IDs must remain marked as `TODO_VERIFY` in metadata and must not be activated as fetchable official series until verified.
 
+## EIA Official Energy Ingestion
+
+Phase 2E-5D introduces EIA `official_public_energy` ingestion using the same normalized macro series schema.
+
+EIA supports Energy / Oil inflation pressure context through energy fundamentals such as crude inventory, crude production, refinery activity, gasoline, distillate, and natural gas where official series IDs or routes are verified. EIA spot and benchmark series can provide physical energy context, but they do not provide CL individual contract-month settlements.
+
+Fetchers return normalized pandas DataFrames for research and validation workflows; they do not write committed data files. The root `.env` remains local-only and ignored. `.env.example` contains empty placeholders only. Tests for EIA official ingestion use mocked network responses and must not call external APIs.
+
+This framework does not create a production composite score. It does not close the Energy / Oil WTI M1/M2/M3 futures curve blocker. EIA data cannot replace CME DataMine or another licensed vendor for CL individual contract-month settlements.
+
+Unverified EIA series IDs and routes must remain marked as `TODO_VERIFY` and inactive until verified.
+
 ## Food / Agriculture Component Status
 
 The Food / Agriculture component now has a V1 data contract in `macro_research_system/config/food_inflation_series.yaml` and a design note at `macro_research_system/docs/food_inflation_pressure_design.md`.

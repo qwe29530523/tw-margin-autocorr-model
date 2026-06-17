@@ -1,0 +1,182 @@
+crude_oil_inventory:
+  - series_id: PET.WCESTUS1.W
+    series_name: U.S. Ending Stocks of Crude Oil
+    group: crude_oil_inventory
+    frequency_hint: weekly
+    unit_hint: thousand barrels
+    seasonal_adjustment_hint: not seasonally adjusted
+    source_name: EIA
+    source_type: official_public_energy
+    feature_role: crude_inventory
+    active: true
+
+crude_oil_production:
+  - series_id: PET.WCRFPUS2.W
+    series_name: U.S. Field Production of Crude Oil
+    group: crude_oil_production
+    frequency_hint: weekly
+    unit_hint: thousand barrels per day
+    seasonal_adjustment_hint: not seasonally adjusted
+    source_name: EIA
+    source_type: official_public_energy
+    feature_role: crude_production
+    active: true
+
+refinery_activity:
+  - series_id: PET.WPULEUS3.W
+    series_name: U.S. Percent Utilization of Refinery Operable Capacity
+    group: refinery_activity
+    frequency_hint: weekly
+    unit_hint: percent
+    seasonal_adjustment_hint: not seasonally adjusted
+    source_name: EIA
+    source_type: official_public_energy
+    feature_role: refinery_utilization
+    active: true
+  - series_id: PET.WCRRIUS2.W
+    series_name: U.S. Refiner Inputs of Crude Oil
+    group: refinery_activity
+    frequency_hint: weekly
+    unit_hint: thousand barrels per day
+    seasonal_adjustment_hint: not seasonally adjusted
+    source_name: EIA
+    source_type: official_public_energy
+    feature_role: refinery_crude_inputs
+    active: true
+
+gasoline:
+  - series_id: PET.WGTSTUS1.W
+    series_name: U.S. Ending Stocks of Total Gasoline
+    group: gasoline
+    frequency_hint: weekly
+    unit_hint: thousand barrels
+    seasonal_adjustment_hint: not seasonally adjusted
+    source_name: EIA
+    source_type: official_public_energy
+    feature_role: gasoline_inventory
+    active: true
+  - series_id: PET.WGFUPUS2.W
+    series_name: U.S. Product Supplied of Finished Motor Gasoline
+    group: gasoline
+    frequency_hint: weekly
+    unit_hint: thousand barrels per day
+    seasonal_adjustment_hint: not seasonally adjusted
+    source_name: EIA
+    source_type: official_public_energy
+    feature_role: gasoline_product_supplied
+    active: true
+
+distillate_diesel:
+  - series_id: PET.WDISTUS1.W
+    series_name: U.S. Ending Stocks of Distillate Fuel Oil
+    group: distillate_diesel
+    frequency_hint: weekly
+    unit_hint: thousand barrels
+    seasonal_adjustment_hint: not seasonally adjusted
+    source_name: EIA
+    source_type: official_public_energy
+    feature_role: distillate_inventory
+    active: true
+  - series_id: PET.WDIUPUS2.W
+    series_name: U.S. Product Supplied of Distillate Fuel Oil
+    group: distillate_diesel
+    frequency_hint: weekly
+    unit_hint: thousand barrels per day
+    seasonal_adjustment_hint: not seasonally adjusted
+    source_name: EIA
+    source_type: official_public_energy
+    feature_role: distillate_product_supplied
+    active: true
+
+natural_gas: []
+
+prices_benchmark_context:
+  - series_id: RWTC
+    route: petroleum/pri/spt
+    series_name: Cushing, OK WTI Spot Price FOB
+    group: prices_benchmark_context
+    frequency_hint: daily
+    unit_hint: dollars per barrel
+    seasonal_adjustment_hint: not seasonally adjusted
+    source_name: EIA
+    source_type: official_public_energy
+    feature_role: wti_spot_benchmark_context
+    active: true
+    not_usable_for:
+      - CL individual contract-month settlement
+      - WTI M1/M2/M3 futures curve
+  - series_id: EER_EPMRU_PF4_RGC_DPG
+    route: petroleum/pri/spt
+    series_name: U.S. Gulf Coast Conventional Gasoline Spot Price
+    group: prices_benchmark_context
+    frequency_hint: daily
+    unit_hint: dollars per gallon
+    seasonal_adjustment_hint: not seasonally adjusted
+    source_name: EIA
+    source_type: official_public_energy
+    feature_role: gasoline_spot_benchmark_context
+    active: true
+    not_usable_for:
+      - CL individual contract-month settlement
+      - WTI M1/M2/M3 futures curve
+  - series_id: EER_EPD2DXL0_PF4_RGC_DPG
+    route: petroleum/pri/spt
+    series_name: U.S. Gulf Coast Ultra-Low Sulfur No. 2 Diesel Spot Price
+    group: prices_benchmark_context
+    frequency_hint: daily
+    unit_hint: dollars per gallon
+    seasonal_adjustment_hint: not seasonally adjusted
+    source_name: EIA
+    source_type: official_public_energy
+    feature_role: diesel_spot_benchmark_context
+    active: true
+    not_usable_for:
+      - CL individual contract-month settlement
+      - WTI M1/M2/M3 futures curve
+
+todo_verify:
+  crude_oil_inventory:
+    cushing_crude_oil_stocks:
+      series_id: TODO_VERIFY
+      active: false
+      status: TODO_VERIFY
+      description: Verify official EIA Cushing crude oil stocks series before activating.
+    strategic_petroleum_reserve:
+      series_id: TODO_VERIFY
+      active: false
+      status: TODO_VERIFY
+      description: Verify official EIA Strategic Petroleum Reserve series before activating.
+  crude_oil_production:
+    lower_48_crude_production:
+      series_id: TODO_VERIFY
+      active: false
+      status: TODO_VERIFY
+      description: Verify official EIA Lower 48 crude production series before activating.
+  gasoline:
+    gasoline_production:
+      series_id: TODO_VERIFY
+      active: false
+      status: TODO_VERIFY
+      description: Verify official EIA gasoline production series before activating.
+  natural_gas:
+    natural_gas_storage:
+      series_id: TODO_VERIFY
+      active: false
+      status: TODO_VERIFY
+      description: Verify official EIA natural gas storage series before activating.
+    natural_gas_marketed_production:
+      series_id: TODO_VERIFY
+      active: false
+      status: TODO_VERIFY
+      description: Verify official EIA natural gas marketed production series before activating.
+    henry_hub_spot:
+      series_id: TODO_VERIFY
+      active: false
+      status: TODO_VERIFY
+      description: Verify official EIA Henry Hub spot route or series before activating.
+  prices_benchmark_context:
+    brent_spot_benchmark:
+      series_id: TODO_VERIFY
+      active: false
+      status: TODO_VERIFY
+      description: Verify official EIA Brent spot route or series before activating.
