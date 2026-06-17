@@ -1,0 +1,180 @@
+rates:
+  - series_id: FEDFUNDS
+    series_name: Federal Funds Effective Rate
+    group: rates
+    frequency_hint: monthly
+    unit_hint: percent
+    seasonal_adjustment_hint: not seasonally adjusted
+    source_name: FRED
+    source_type: official_public_macro
+    feature_role: policy_rate
+  - series_id: DGS2
+    series_name: 2-Year Treasury Constant Maturity Rate
+    group: rates
+    frequency_hint: daily
+    unit_hint: percent
+    seasonal_adjustment_hint: not seasonally adjusted
+    source_name: FRED
+    source_type: official_public_macro
+    feature_role: front_end_treasury_yield
+  - series_id: DGS10
+    series_name: 10-Year Treasury Constant Maturity Rate
+    group: rates
+    frequency_hint: daily
+    unit_hint: percent
+    seasonal_adjustment_hint: not seasonally adjusted
+    source_name: FRED
+    source_type: official_public_macro
+    feature_role: long_end_treasury_yield
+  - series_id: T10Y2Y
+    series_name: 10-Year Treasury Minus 2-Year Treasury
+    group: rates
+    frequency_hint: daily
+    unit_hint: percent
+    seasonal_adjustment_hint: not seasonally adjusted
+    source_name: FRED
+    source_type: official_public_macro
+    feature_role: treasury_curve_slope
+
+breakeven_inflation:
+  - series_id: T5YIE
+    series_name: 5-Year Breakeven Inflation Rate
+    group: breakeven_inflation
+    frequency_hint: daily
+    unit_hint: percent
+    seasonal_adjustment_hint: not seasonally adjusted
+    source_name: FRED
+    source_type: official_public_macro
+    feature_role: inflation_expectations
+  - series_id: T10YIE
+    series_name: 10-Year Breakeven Inflation Rate
+    group: breakeven_inflation
+    frequency_hint: daily
+    unit_hint: percent
+    seasonal_adjustment_hint: not seasonally adjusted
+    source_name: FRED
+    source_type: official_public_macro
+    feature_role: inflation_expectations
+  - series_id: T5YIFR
+    series_name: 5-Year 5-Year Forward Inflation Expectation Rate
+    group: breakeven_inflation
+    frequency_hint: daily
+    unit_hint: percent
+    seasonal_adjustment_hint: not seasonally adjusted
+    source_name: FRED
+    source_type: official_public_macro
+    feature_role: forward_inflation_expectations
+
+mortgage_housing:
+  - series_id: MORTGAGE30US
+    series_name: 30-Year Fixed Rate Mortgage Average
+    group: mortgage_housing
+    frequency_hint: weekly
+    unit_hint: percent
+    seasonal_adjustment_hint: not seasonally adjusted
+    source_name: FRED
+    source_type: official_public_macro
+    feature_role: mortgage_rate_pressure
+  - series_id: MORTGAGE15US
+    series_name: 15-Year Fixed Rate Mortgage Average
+    group: mortgage_housing
+    frequency_hint: weekly
+    unit_hint: percent
+    seasonal_adjustment_hint: not seasonally adjusted
+    source_name: FRED
+    source_type: official_public_macro
+    feature_role: mortgage_rate_pressure
+  - series_id: CSUSHPISA
+    series_name: S&P CoreLogic Case-Shiller U.S. National Home Price Index
+    group: mortgage_housing
+    frequency_hint: monthly
+    unit_hint: index
+    seasonal_adjustment_hint: seasonally adjusted
+    source_name: FRED
+    source_type: official_public_macro
+    feature_role: home_price_momentum
+  - series_id: USSTHPI
+    series_name: FHFA U.S. House Price Index
+    group: mortgage_housing
+    frequency_hint: quarterly
+    unit_hint: index
+    seasonal_adjustment_hint: not seasonally adjusted
+    source_name: FRED
+    source_type: official_public_macro
+    feature_role: home_price_momentum
+
+inflation_targets:
+  - series_id: CPIAUCSL
+    series_name: Consumer Price Index for All Urban Consumers
+    group: inflation_targets
+    frequency_hint: monthly
+    unit_hint: index
+    seasonal_adjustment_hint: seasonally adjusted
+    source_name: FRED
+    source_type: official_public_macro
+    feature_role: headline_cpi_target
+  - series_id: CPILFESL
+    series_name: Consumer Price Index Less Food and Energy
+    group: inflation_targets
+    frequency_hint: monthly
+    unit_hint: index
+    seasonal_adjustment_hint: seasonally adjusted
+    source_name: FRED
+    source_type: official_public_macro
+    feature_role: core_cpi_target
+  - series_id: PCEPI
+    series_name: Personal Consumption Expenditures Price Index
+    group: inflation_targets
+    frequency_hint: monthly
+    unit_hint: index
+    seasonal_adjustment_hint: seasonally adjusted
+    source_name: FRED
+    source_type: official_public_macro
+    feature_role: headline_pce_target
+  - series_id: PCEPILFE
+    series_name: Core PCE Price Index
+    group: inflation_targets
+    frequency_hint: monthly
+    unit_hint: index
+    seasonal_adjustment_hint: seasonally adjusted
+    source_name: FRED
+    source_type: official_public_macro
+    feature_role: core_pce_target
+
+labor_macro:
+  - series_id: UNRATE
+    series_name: Unemployment Rate
+    group: labor_macro
+    frequency_hint: monthly
+    unit_hint: percent
+    seasonal_adjustment_hint: seasonally adjusted
+    source_name: FRED
+    source_type: official_public_macro
+    feature_role: labor_market_slack
+  - series_id: PAYEMS
+    series_name: All Employees, Total Nonfarm
+    group: labor_macro
+    frequency_hint: monthly
+    unit_hint: thousands of persons
+    seasonal_adjustment_hint: seasonally adjusted
+    source_name: FRED
+    source_type: official_public_macro
+    feature_role: payroll_momentum
+  - series_id: ICSA
+    series_name: Initial Claims
+    group: labor_macro
+    frequency_hint: weekly
+    unit_hint: persons
+    seasonal_adjustment_hint: seasonally adjusted
+    source_name: FRED
+    source_type: official_public_macro
+    feature_role: labor_stress
+  - series_id: CCSA
+    series_name: Continued Claims
+    group: labor_macro
+    frequency_hint: weekly
+    unit_hint: persons
+    seasonal_adjustment_hint: seasonally adjusted
+    source_name: FRED
+    source_type: official_public_macro
+    feature_role: labor_stress

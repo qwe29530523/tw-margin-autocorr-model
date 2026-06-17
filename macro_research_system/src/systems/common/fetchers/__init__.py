@@ -1,0 +1,1 @@
+"""Official macro data fetchers."""

@@ -40,6 +40,16 @@ The source registry in `macro_research_system/config/api_source_registry.yaml` s
 
 The environment preflight utility reports only boolean/configured status and safe metadata. It must never print, return, or write actual API key values. `.env`, secrets, and credentials must stay untracked and must never be committed.
 
+## Official Macro Data Ingestion Framework
+
+Phase 2E-5B introduces a normalized macro series schema for official macro data ingestion. FRED is the first `official_public_macro` implementation.
+
+The normalized schema returns pandas DataFrames with explicit source metadata, including `source_name`, `source_type`, frequency, units, seasonal-adjustment hints, and `fetched_at`. Fetchers return normalized frames for research and validation workflows; they do not write committed data files.
+
+The root `.env` remains local-only and ignored. `.env.example` contains empty placeholders only. Tests for official fetchers use mocked network responses and must not call external APIs.
+
+This framework does not create a production composite score. It also does not close the Energy / Oil WTI M1/M2/M3 futures curve blocker. FRED observations cannot replace CME DataMine or another licensed vendor for CL individual contract-month settlements.
+
 ## Food / Agriculture Component Status
 
 The Food / Agriculture component now has a V1 data contract in `macro_research_system/config/food_inflation_series.yaml` and a design note at `macro_research_system/docs/food_inflation_pressure_design.md`.
