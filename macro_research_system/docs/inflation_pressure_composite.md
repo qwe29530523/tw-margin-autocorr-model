@@ -86,6 +86,17 @@ This framework does not create a production composite score. It does not close t
 
 Unverified Census routes and variables must remain marked as `TODO_VERIFY` and inactive until verified.
 
+## Domain Input Builders
+
+Phase 2E-7 maps normalized official series into domain-specific input frames for Energy / Oil, Food / Agriculture, Shelter / Housing, and Services / Wage. Domain builders are adapters, not production scoring engines. They do not fetch data directly and do not write raw, processed, output, or export files.
+
+Domain builders provide coverage diagnostics so missing series become explicit diagnostics rather than silent production assumptions. TODO_VERIFY series remain inactive, and Census active series count remains 0 until verified route mapping exists.
+
+Energy benchmark data cannot replace CME CL M1/M2/M3 futures curve data. Refined product margin and crack spread fields are registered as `TODO_VERIFY_VENDOR_ROUTE` coverage items for `energy_oil`. They are not active production inputs until verified RBOB, Heating Oil, and WTI futures or vendor series exist. Current benchmark data cannot replace CME CL futures curve or verified refined product futures. Missing crack spread fields remain diagnostics, not assumptions.
+
+No production composite score or final trading signal is created by this layer.
+
+
 ## Food / Agriculture Component Status
 
 The Food / Agriculture component now has a V1 data contract in `macro_research_system/config/food_inflation_series.yaml` and a design note at `macro_research_system/docs/food_inflation_pressure_design.md`.

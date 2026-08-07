@@ -1,0 +1,144 @@
+energy_oil:
+  source_priority:
+    - EIA
+    - FRED
+    - MetalPriceAPI
+  mappings:
+    crude_oil_inventory:
+      candidate_series:
+        - PET.WCESTUS1.W
+      required: false
+      feature_role: energy_fundamental
+    crude_oil_production:
+      candidate_series:
+        - PET.WCRFPUS2.W
+      required: false
+      feature_role: energy_supply
+    refinery_utilization:
+      candidate_series:
+        - PET.WPULEUS3.W
+      required: false
+      feature_role: refinery_activity
+    gasoline_inventory:
+      candidate_series:
+        - PET.WGTSTUS1.W
+      required: false
+      feature_role: refined_product_inventory
+    distillate_inventory:
+      candidate_series:
+        - PET.WDISTUS1.W
+      required: false
+      feature_role: distillate_inventory
+    wti_benchmark:
+      candidate_series:
+        - RWTC
+        - WTI
+      required: false
+      feature_role: research_or_context_benchmark
+      caveat: not_wti_futures_curve
+    rbob_gasoline_price:
+      candidate_series: []
+      required: false
+      feature_role: refined_product_price
+      status: TODO_VERIFY_VENDOR_ROUTE
+      caveat: requires_verified_rbob_futures_or_vendor_series
+    heating_oil_price:
+      candidate_series: []
+      required: false
+      feature_role: refined_product_price
+      status: TODO_VERIFY_VENDOR_ROUTE
+      caveat: requires_verified_heating_oil_futures_or_vendor_series
+    gasoline_crack_spread:
+      candidate_series: []
+      required: false
+      feature_role: refined_product_margin
+      status: TODO_VERIFY_VENDOR_ROUTE
+      caveat: requires_verified_wti_and_rbob_futures; not_official_until_vendor_verified
+    distillate_crack_spread:
+      candidate_series: []
+      required: false
+      feature_role: distillate_margin
+      status: TODO_VERIFY_VENDOR_ROUTE
+      caveat: requires_verified_wti_and_heating_oil_futures; not_official_until_vendor_verified
+    crack_321:
+      candidate_series: []
+      required: false
+      feature_role: refinery_margin_proxy
+      status: TODO_VERIFY_VENDOR_ROUTE
+      caveat: requires_verified_wti_rbob_heating_oil_futures; not_official_until_vendor_verified
+
+food_inflation:
+  source_priority:
+    - BLS
+    - FRED
+  mappings:
+    food_cpi:
+      candidate_series:
+        - CUUR0000SAF1
+      required: false
+      feature_role: food_price_pressure
+    food_at_home_cpi:
+      candidate_series:
+        - CUUR0000SAF11
+      required: false
+      feature_role: food_price_pressure
+    headline_cpi:
+      candidate_series:
+        - CPIAUCSL
+        - CUUR0000SA0
+      required: false
+      feature_role: macro_target_context
+
+shelter_inflation:
+  source_priority:
+    - BLS
+    - FRED
+    - Census
+  mappings:
+    shelter_cpi:
+      candidate_series:
+        - CUUR0000SAH1
+      required: false
+      feature_role: shelter_price_pressure
+    rent_cpi:
+      candidate_series:
+        - CUUR0000SEHA
+      required: false
+      feature_role: rent_pressure
+    owners_equivalent_rent:
+      candidate_series:
+        - CUUR0000SEHC
+      required: false
+      feature_role: oer_pressure
+    mortgage_rate:
+      candidate_series:
+        - MORTGAGE30US
+      required: false
+      feature_role: affordability_pressure
+    housing_starts:
+      candidate_series: []
+      required: false
+      feature_role: housing_pipeline
+      status: TODO_VERIFY_CENSUS_ROUTE
+
+services_wage_inflation:
+  source_priority:
+    - BLS
+    - FRED
+  mappings:
+    core_services_proxy:
+      candidate_series:
+        - CUUR0000SASLE
+      required: false
+      feature_role: services_price_pressure
+    average_hourly_earnings:
+      candidate_series:
+        - CES0500000003
+      required: false
+      feature_role: wage_pressure
+    unemployment_rate:
+      candidate_series:
+        - UNRATE
+        - LNS14000000
+      required: false
+      feature_role: labor_market_slack
