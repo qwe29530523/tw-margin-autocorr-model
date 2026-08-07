@@ -106,6 +106,16 @@ CFTC COT is official public positioning data for diagnostics such as managed mon
 
 This does not replace CME CL, RB, or HO verified contract-month settlement data. Yahoo/yfinance does not provide verified WTI M1/M2/M3 futures curve coverage, and the WTI M1/M2/M3 futures curve blocker remains open. Research proxy fields are not production inputs, and no production composite score or final trading signal is created.
 
+## Oil Macro Summary Adapter
+
+Phase 2E-10 introduces Oil Macro Core V1 as a summary adapter for Energy / Oil diagnosis. It aggregates oil-rate-inflation state, physical tightness, product inventory pressure, Yahoo/yfinance crack spread research proxies, CFTC positioning diagnostics, WTI futures curve blocker metadata, and coverage caveats into a single summary object for future Macro Regime Kernel research.
+
+This adapter is not a trading engine. It does not fetch data directly, does not write raw, processed, output, export, or debug files, and does not create production scoring, composite scoring, or final trading signals. Missing inputs become `warning_flags` and `data_caveats` rather than silent assumptions.
+
+Yahoo/yfinance crack spread fields remain research-only public proxies. CFTC positioning remains official public positioning diagnostics and is not a final oil signal. The WTI M1/M2/M3 futures curve remains `BLOCKED_VENDOR_NOT_CONFIGURED` until a verified exchange or licensed vendor contract-month settlement source is configured and validated.
+
+Oil Macro Core V1 can be used as one diagnostic input to a future Macro Regime Kernel, but it cannot replace component-level backtests, verified futures curve data, or production-readiness gates.
+
 ## Food / Agriculture Component Status
 
 The Food / Agriculture component now has a V1 data contract in `macro_research_system/config/food_inflation_series.yaml` and a design note at `macro_research_system/docs/food_inflation_pressure_design.md`.
