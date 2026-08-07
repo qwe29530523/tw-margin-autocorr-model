@@ -9,7 +9,13 @@ import yaml
 from src.systems.common.macro_series_schema import validate_macro_series_frame
 
 
-TODO_STATUSES = {"TODO_VERIFY", "TODO_VERIFY_CENSUS_ROUTE", "TODO_VERIFY_VENDOR_ROUTE"}
+TODO_STATUSES = {
+    "BLOCKED_VENDOR_NOT_CONFIGURED",
+    "TODO_VERIFY",
+    "TODO_VERIFY_CENSUS_ROUTE",
+    "TODO_VERIFY_VENDOR_ROUTE",
+}
+WTI_M1_M2_M3_BLOCKER_STATUS = "open"
 
 
 def load_domain_input_mappings(config_path: str | Path | None = None) -> dict[str, Any]:
@@ -88,6 +94,7 @@ def build_domain_input_coverage(
                 "feature_role": field_config.get("feature_role"),
                 "status": field_config.get("status"),
                 "caveat": field_config.get("caveat"),
+                "wti_m1_m2_m3_blocker_status": field_config.get("wti_m1_m2_m3_blocker_status"),
             }
         )
     return rows

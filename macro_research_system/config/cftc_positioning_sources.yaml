@@ -1,0 +1,21 @@
+cftc_cot_energy:
+  source_name: CFTC_COT
+  source_type: official_public_positioning_data
+  status: PUBLIC_DATA_SOURCE
+  configured: true
+  requires_api_key: false
+  intended_use_cases:
+    - oil_positioning_squeeze_layer
+    - managed_money_positioning
+    - crowded_short_diagnostics
+  markets:
+    wti_crude_oil:
+      exchange: NYMEX
+      target_contract: WTI crude oil futures and options
+      required_fields:
+        - report_date
+        - managed_money_long
+        - managed_money_short
+        - open_interest
+      caveat: field names may require normalization from raw CFTC legacy/disaggregated report format
+  caveat: CFTC COT data is public positioning data, but report format and market naming must be normalized before production use.

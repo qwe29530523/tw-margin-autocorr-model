@@ -2,7 +2,9 @@ energy_oil:
   source_priority:
     - EIA
     - FRED
+    - CFTC_COT
     - MetalPriceAPI
+    - YAHOO_YFINANCE
   mappings:
     crude_oil_inventory:
       candidate_series:
@@ -36,6 +38,86 @@ energy_oil:
       required: false
       feature_role: research_or_context_benchmark
       caveat: not_wti_futures_curve
+      wti_m1_m2_m3_blocker_status: open
+    wti_front_month_research_proxy:
+      candidate_series:
+        - YAHOO_YFINANCE:CL=F
+      required: false
+      feature_role: research_or_context_benchmark
+      status: RESEARCH_ONLY
+      source_type: research_only_public_proxy
+      caveat: not_wti_futures_curve; continuous front-month proxy only
+    rbob_front_month_research_proxy:
+      candidate_series:
+        - YAHOO_YFINANCE:RB=F
+      required: false
+      feature_role: refined_product_price_proxy
+      status: RESEARCH_ONLY
+      source_type: research_only_public_proxy
+      caveat: not_verified_vendor_source; continuous front-month proxy only
+    heating_oil_front_month_research_proxy:
+      candidate_series:
+        - YAHOO_YFINANCE:HO=F
+      required: false
+      feature_role: refined_product_price_proxy
+      status: RESEARCH_ONLY
+      source_type: research_only_public_proxy
+      caveat: not_verified_vendor_source; continuous front-month proxy only
+    gasoline_crack_research_proxy:
+      candidate_series:
+        - YAHOO_YFINANCE:GASOLINE_CRACK_PROXY
+      required: false
+      feature_role: refined_product_margin_proxy
+      status: RESEARCH_ONLY
+      source_type: research_only_public_proxy
+      caveat: not_official_crack_spread; derived from yfinance continuous proxies
+    distillate_crack_research_proxy:
+      candidate_series:
+        - YAHOO_YFINANCE:DISTILLATE_CRACK_PROXY
+      required: false
+      feature_role: distillate_margin_proxy
+      status: RESEARCH_ONLY
+      source_type: research_only_public_proxy
+      caveat: not_official_crack_spread; derived from yfinance continuous proxies
+    crack_321_research_proxy:
+      candidate_series:
+        - YAHOO_YFINANCE:CRACK_321_PROXY
+      required: false
+      feature_role: refinery_margin_proxy
+      status: RESEARCH_ONLY
+      source_type: research_only_public_proxy
+      caveat: not_official_crack_spread; derived from yfinance continuous proxies
+    managed_money_net_position:
+      candidate_series:
+        - CFTC_COT:WTI_MANAGED_MONEY_NET
+      required: false
+      feature_role: positioning
+      status: PUBLIC_DATA_SOURCE
+      source_type: official_public_positioning_data
+      caveat: CFTC COT positioning layer; not a price signal
+    managed_money_short_percentile:
+      candidate_series:
+        - CFTC_COT:WTI_MANAGED_MONEY_SHORT_PERCENTILE
+      required: false
+      feature_role: crowded_short_diagnostics
+      status: PUBLIC_DATA_SOURCE
+      source_type: official_public_positioning_data
+      caveat: CFTC COT positioning layer; not a price signal
+    oil_positioning_squeeze_state:
+      candidate_series:
+        - CFTC_COT:OIL_POSITIONING_SQUEEZE_STATE
+      required: false
+      feature_role: positioning_regime
+      status: PUBLIC_DATA_SOURCE
+      source_type: official_public_positioning_data
+      caveat: positioning diagnosis only; not final trading signal
+    wti_m1_m2_m3_curve:
+      candidate_series: []
+      required: false
+      feature_role: futures_curve_structure
+      status: BLOCKED_VENDOR_NOT_CONFIGURED
+      source_type: official_exchange_or_licensed_vendor_required
+      caveat: CME DataMine configured=false; WTI M1/M2/M3 futures curve blocker remains open
     rbob_gasoline_price:
       candidate_series: []
       required: false

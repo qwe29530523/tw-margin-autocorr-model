@@ -38,6 +38,30 @@ def _normalized_fixture() -> pd.DataFrame:
         ("2026-06-14", "CPIAUCSL", "Headline CPI", 310.4, "FRED", "official_public_macro"),
         ("2026-06-14", "PET.WCESTUS1.W", "Crude Stocks", 431800.0, "EIA", "official_public_energy"),
         ("2026-06-14", "PET.WCRFPUS2.W", "Crude Production", 13250.0, "EIA", "official_public_energy"),
+        (
+            "2026-06-14",
+            "CFTC_COT:WTI_MANAGED_MONEY_NET",
+            "WTI managed money net",
+            -20000.0,
+            "CFTC_COT",
+            "official_public_positioning_data",
+        ),
+        (
+            "2026-06-14",
+            "CFTC_COT:WTI_MANAGED_MONEY_SHORT_PERCENTILE",
+            "WTI managed money short percentile",
+            0.91,
+            "CFTC_COT",
+            "official_public_positioning_data",
+        ),
+        (
+            "2026-06-14",
+            "CFTC_COT:OIL_POSITIONING_SQUEEZE_STATE",
+            "WTI positioning squeeze state",
+            1.0,
+            "CFTC_COT",
+            "official_public_positioning_data",
+        ),
     ]
     return pd.DataFrame(
         rows,
@@ -56,6 +80,12 @@ def test_load_domain_input_mappings_contains_expected_domains_and_crack_fields()
     assert {"energy_oil", "food_inflation", "shelter_inflation", "services_wage_inflation"} <= set(mappings)
     energy_mappings = mappings["energy_oil"]["mappings"]
     assert {"gasoline_crack_spread", "distillate_crack_spread", "crack_321"} <= set(energy_mappings)
+    assert {
+        "managed_money_net_position",
+        "managed_money_short_percentile",
+        "oil_positioning_squeeze_state",
+        "wti_m1_m2_m3_curve",
+    } <= set(energy_mappings)
     assert energy_mappings["gasoline_crack_spread"]["status"] == "TODO_VERIFY_VENDOR_ROUTE"
     assert energy_mappings["gasoline_crack_spread"]["candidate_series"] == []
     assert energy_mappings["gasoline_crack_spread"]["required"] is False
@@ -114,6 +144,95 @@ def test_energy_crack_spread_fields_are_diagnostics_only_until_vendor_verified()
         assert field not in wide.columns
 
     assert by_field["wti_benchmark"]["caveat"] == "not_wti_futures_curve"
+    assert "wti_m1_m2_m3_blocker_status" in by_field["wti_benchmark"]
+    assert by_field["wti_benchmark"]["wti_m1_m2_m3_blocker_status"] == "open"
+
+
+def test_energy_research_proxy_fields_are_explicitly_research_only() -> None:
+    frame = _normalized_fixture()
+    research_rows = pd.DataFrame(
+        [
+            (
+                "2026-06-07",
+                "YAHOO_YFINANCE:CL=F",
+                "WTI front-month research proxy",
+                75.0,
+                "YAHOO_YFINANCE",
+                "research_only_public_proxy",
+            ),
+            (
+                "2026-06-07",
+                "YAHOO_YFINANCE:RB=F",
+                "RBOB front-month research proxy",
+                2.25,
+                "YAHOO_YFINANCE",
+                "research_only_public_proxy",
+            ),
+            (
+                "2026-06-07",
+                "YAHOO_YFINANCE:GASOLINE_CRACK_PROXY",
+                "Gasoline crack research proxy",
+                19.5,
+                "YAHOO_YFINANCE",
+                "research_only_public_proxy",
+            ),
+        ],
+        columns=["date", "series_id", "series_name", "value", "source_name", "source_type"],
+    ).assign(
+        frequency="daily",
+        unit="proxy",
+        seasonal_adjustment="not_applicable",
+        fetched_at="2026-06-17T00:00:00+00:00",
+    )
+    frame = pd.concat([frame, research_rows], ignore_index=True)
+
+    wide = build_domain_input(frame, "energy_oil")
+    coverage = build_domain_input_coverage(frame, "energy_oil")
+    by_field = {row["mapped_field"]: row for row in coverage}
+
+    for field in [
+        "wti_front_month_research_proxy",
+        "rbob_front_month_research_proxy",
+        "gasoline_crack_research_proxy",
+    ]:
+        assert field in by_field
+        assert by_field[field]["required"] is False
+        assert by_field[field]["status"] == "RESEARCH_ONLY"
+        assert by_field[field]["source_type"] == "research_only_public_proxy"
+        assert by_field[field]["is_available"] is True
+        assert field in wide.columns
+        assert by_field[field]["caveat"]
+
+    assert by_field["gasoline_crack_spread"]["status"] == "TODO_VERIFY_VENDOR_ROUTE"
+    assert by_field["distillate_crack_spread"]["status"] == "TODO_VERIFY_VENDOR_ROUTE"
+    assert by_field["crack_321"]["status"] == "TODO_VERIFY_VENDOR_ROUTE"
+    assert by_field["wti_m1_m2_m3_curve"]["status"] == "BLOCKED_VENDOR_NOT_CONFIGURED"
+    assert by_field["wti_m1_m2_m3_curve"]["is_available"] is False
+    assert "CME CL futures curve source" not in str(by_field)
+    assert "official_exchange_source: true" not in str(by_field)
+
+
+def test_energy_cftc_positioning_fields_are_public_diagnostics_only() -> None:
+    wide = build_domain_input(_normalized_fixture(), "energy_oil")
+    coverage = build_domain_input_coverage(_normalized_fixture(), "energy_oil")
+    by_field = {row["mapped_field"]: row for row in coverage}
+
+    for field in [
+        "managed_money_net_position",
+        "managed_money_short_percentile",
+        "oil_positioning_squeeze_state",
+    ]:
+        assert field in by_field
+        assert by_field[field]["required"] is False
+        assert by_field[field]["status"] == "PUBLIC_DATA_SOURCE"
+        assert by_field[field]["source_type"] == "official_public_positioning_data"
+        assert by_field[field]["is_available"] is True
+        assert by_field[field]["caveat"]
+        assert field in wide.columns
+
+    assert by_field["wti_m1_m2_m3_curve"]["status"] == "BLOCKED_VENDOR_NOT_CONFIGURED"
+    assert by_field["wti_m1_m2_m3_curve"]["source_type"] == "official_exchange_or_licensed_vendor_required"
+    assert "CME CL futures curve source" not in str(wide)
 
 
 def test_all_coverage_has_domain_rows_and_no_forbidden_outputs() -> None:

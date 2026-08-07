@@ -96,6 +96,15 @@ Energy benchmark data cannot replace CME CL M1/M2/M3 futures curve data. Refined
 
 No production composite score or final trading signal is created by this layer.
 
+## Energy Oil Research Proxy and Positioning Diagnostics
+
+Phase 2E-9 adds a Yahoo/yfinance energy futures proxy only for free, research-only exploration. It uses `CL=F`, `RB=F`, and `HO=F` as continuous front-month public proxies, not as official or verified vendor futures data.
+
+Derived research fields include `gasoline_crack_research_proxy`, `distillate_crack_research_proxy`, and `crack_321_research_proxy`. RB and HO are treated as USD/gallon proxies and multiplied by 42; CL is treated as a USD/barrel proxy.
+
+CFTC COT is official public positioning data for diagnostics such as managed money net, crowded short percentiles, and squeeze setup context. CFTC positioning is not a final oil trading signal.
+
+This does not replace CME CL, RB, or HO verified contract-month settlement data. Yahoo/yfinance does not provide verified WTI M1/M2/M3 futures curve coverage, and the WTI M1/M2/M3 futures curve blocker remains open. Research proxy fields are not production inputs, and no production composite score or final trading signal is created.
 
 ## Food / Agriculture Component Status
 

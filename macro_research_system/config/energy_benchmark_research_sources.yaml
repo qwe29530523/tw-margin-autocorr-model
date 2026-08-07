@@ -12,3 +12,36 @@ not_usable_for:
   - WTI M1/M2/M3 futures curve
   - CME official settlement curve
   - production curve signal
+
+yahoo_yfinance_energy_futures:
+  source_name: YAHOO_YFINANCE
+  source_type: research_only_public_proxy
+  status: RESEARCH_ONLY
+  configured: true
+  official_exchange_source: false
+  verified_vendor_source: false
+  intended_use_cases:
+    - visual_research_proxy_only
+    - front_month_energy_proxy
+    - crack_spread_research_proxy
+  symbols:
+    wti_front_month_proxy:
+      symbol: CL=F
+      asset: WTI crude oil futures
+      caveat: continuous front-month proxy; roll methodology is not verified
+    rbob_front_month_proxy:
+      symbol: RB=F
+      asset: RBOB gasoline futures
+      caveat: continuous front-month proxy; quoted in USD/gallon; roll methodology is not verified
+    heating_oil_front_month_proxy:
+      symbol: HO=F
+      asset: Heating Oil / ULSD futures
+      caveat: continuous front-month proxy; quoted in USD/gallon; roll methodology is not verified
+  required_fields:
+    - date
+    - close
+  derived_research_fields:
+    - gasoline_crack_research_proxy
+    - distillate_crack_research_proxy
+    - crack_321_research_proxy
+  caveat: Yahoo/yfinance data is research-only and cannot replace CME CL/RB/HO contract-month settlements, volume, open interest, expiration metadata, or WTI M1/M2/M3 futures curve.
