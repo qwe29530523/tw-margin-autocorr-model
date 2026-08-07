@@ -1,99 +1,246 @@
-# TW Margin Autocorr Model
+# Jeff Macro System
 
-這個專案用來追蹤台股加權指數與台股集中市場融資餘額變化率之間的狀態。第一版採用 TWSE 官方 JSON 資料，建立每日 dataframe，計算指數成長、融資變化率與融資變化率的 rolling autocorrelation，並輸出 CSV、圖表與最新 signal 摘要。
+Jeff Macro System is a macro regime diagnosis system. It organizes macro, inflation, commodity, positioning, and market-structure data into structured outputs that can be tracked, compared, and connected to a future Macro Regime Kernel.
 
-## 模型用途
+This is not a single trading signal system. It is not a buy / sell engine.
 
-模型不是交易建議，而是一個市場槓桿溫度計。它觀察加權指數動能與融資餘額變化是否同向、是否有持續性，協助辨識市場槓桿升溫、行情轉弱但槓桿仍堆高，或融資去化壓力升高的區段。
+## Current Complete Repository
 
-## 圖表線條
+Current complete repo:
 
-`output/tw_margin_autocorr_reference_style.png` 是主要判讀圖，會顯示三條平滑後的相對強弱 factor 線：
+`qwe29530523/tw-margin-autocorr-model`
 
-- 黃線：`index_yoy_ref`，由加權指數年增率 `index_yoy` 的 robust z-score 平滑而來。
-- 藍線：`index_qoq_ref`，由加權指數季增率 `index_qoq` 的 robust z-score 平滑而來。
-- 灰線：`margin_roc_ref`，由集中市場融資餘額變化率 `margin_roc` 的 robust z-score 平滑而來。
+Legacy / early prototype repo:
 
-底部灰色細 bar 是 `autocorr_bar`，用最近 252 筆融資變化率自相關 percentile rank 轉換後繪製，用來觀察融資變化持續性在近期樣本中的相對位置。
+`qwe29530523/liquidity-market-analysis`
 
-## 自相關高分位數的意義
+`liquidity-market-analysis` was an early prototype. The current complete version is maintained in `tw-margin-autocorr-model`.
 
-`margin_roc_autocorr` 是融資變化率在 rolling window 內的一階自相關，預設 window 為 126 個交易日。當它高於 `autocorr_high_threshold`，代表融資變化率近期有較強持續性。預設 threshold 是樣本分位數 0.90，也就是只把歷史上自相關最高的前 10% 區間標成高持續性狀態。
+## Current Status
 
-高自相關本身不代表多空方向，還要搭配 `margin_roc` 與指數動能判斷：
+Oil Macro Core v1 is complete and pushed to GitHub.
 
-- `HOT_LEVERAGE_MOMENTUM`：融資增加、指數季動能為正，且融資變化持續性偏高。
-- `LATE_CYCLE_LEVERAGE_WARNING`：指數年動能仍為正，但季動能轉弱，融資仍增加且持續性偏高。
-- `DELEVERAGING_RISK`：融資下降、指數季動能為負，且融資變化持續性偏高。
-- `NORMAL`：未落入上述狀態。
+Latest completed commit:
 
-CSV 會同時保留 `raw_signal` 與 `final_signal`。`raw_signal` 是上述自相關規則的原始結果；`final_signal` 會再納入 standardized factor extreme、252 日自相關 rank 與融資持續性，並用 `final_signal_reason` 說明覆寫原因。`leverage_cycle_phase` 會把 final signal 歸納成 `normal`、`hot_leverage_momentum`、`late_cycle_leverage_warning` 或 `deleveraging_risk`。
+`528301b Add oil macro summary adapter`
 
-`transition_watch` 是轉折觀察欄位：`distribution_warning` 代表 `index_qoq` 開始轉弱但 `margin_roc` 仍高；`deleveraging_risk_watch` 代表指數 20 日報酬轉負且 `margin_roc` 開始下降。
-
-## 本機執行
+Validation:
 
 ```bash
-python -m pip install -r requirements.txt
-python tw_margin_autocorr_model.py --start 2012-01-01
+python -m pytest
 ```
 
-輸出會寫到 `output/`：
+Current result:
 
-- `output/tw_margin_autocorr_model.csv`
-- `output/tw_margin_autocorr_factor_chart.png`
-- `output/tw_margin_autocorr_reference_style.png`
-- `output/tw_margin_autocorr_factor_chart_smooth.png`
-- `output/tw_margin_autocorr_factor_chart_debug_v2.png`
-- `output/tw_margin_autocorr_raw_percent_debug.png`
-- `output/tw_margin_autocorr_signal.png`
-- `output/data_quality_report.csv`
-- `output/market_extreme_report.csv`
-- `output/outlier_context.csv`
-- `output/signal_summary.json`
+```text
+220 passed
+```
 
-`tw_margin_autocorr_reference_style.png` 是主要判讀圖，使用 reference-style factor 欄位呈現市場 regime；`tw_margin_autocorr_factor_chart.png` 也輸出同一張主圖，方便沿用既有入口。`tw_margin_autocorr_factor_chart_debug_v2.png` 保留未平滑 daily z-score，只用於檢查高頻跳動。`tw_margin_autocorr_raw_percent_debug.png` is raw percent chart only for data inspection, not for regime interpretation.
+## What This Model Is For
 
-`data_quality_report.csv` 只列出疑似資料錯誤的日期與原因；`market_extreme_report.csv` 會列出高成長、高槓桿、自相關高分位、樣本新高等市場極端狀態。`outlier_context.csv` 會列出每個 data quality 或 market extreme 日期前後 5 筆原始模型資料，方便追查是資料源、快取或市場本身造成。
+This system is used to diagnose macro regimes, especially commodity and inflation pressure conditions.
 
-`signal_summary.json` 是最新狀態報告，會顯示 `market_extreme_warning`、`data_quality_warning`、`raw_signal`、`final_signal`、`final_signal_reason`、`leverage_cycle_phase` 與 `transition_watch`。
+Oil Macro Core v1 is the first completed domain module. It helps evaluate whether the oil market is showing:
 
-第一次從 2012 年開始抓融資日資料會比較久。之後如果 `output/tw_margin_autocorr_model.csv` 已存在，腳本會沿用其中的融資餘額資料，只補尚未存在的交易日。
+- inflation pressure
+- physical tightness
+- refined product margin support
+- crowded short / positioning squeeze risk
+- disinflation or demand weakness
+- missing-data or vendor-source blockers
 
-## CLI 參數
+The output is intended to be one input into a broader macro decision framework, not a standalone trading signal.
 
-常用參數如下：
+## Oil Macro Core V1 Information Layers
+
+### 1. Oil Price And Inflation Pressure
+
+Includes:
+
+- WTI price
+- Brent price
+- WTI / Brent ROC
+- headline CPI
+- core CPI
+- energy CPI
+- gasoline CPI
+- food CPI
+- shelter CPI
+- breakeven inflation
+- nominal yield
+- real yield
+- `oil_rate_mix`
+
+Purpose:
+
+This layer diagnoses whether oil prices are forming inflation pressure, or whether the setup is closer to disinflation / growth scare.
+
+### 2. Physical Tightness
+
+Includes:
+
+- crude inventory
+- gasoline inventory
+- distillate inventory
+- refinery utilization
+- crude production
+- crude exports
+- SPR inventory
+- `product_inventory_pressure`
+- `oil_physical_tightness`
+
+Purpose:
+
+This layer diagnoses whether the physical crude and refined-product system is tight, loose, or mixed.
+
+### 3. Crack Spread Research Proxy
+
+Includes:
+
+- `CL=F`
+- `RB=F`
+- `HO=F`
+- `gasoline_crack_research_proxy`
+- `distillate_crack_research_proxy`
+- `crack_321_research_proxy`
+
+Purpose:
+
+This layer uses free yfinance proxies to observe refined product margin direction.
+
+Caveat:
+
+yfinance crack spread data is a research-only proxy. It is not an official CME / Barchart / Nasdaq verified crack spread.
+
+### 4. CFTC Oil Positioning Diagnostics
+
+Includes:
+
+- Managed Money long
+- Managed Money short
+- Managed Money net
+- Managed Money net percent of open interest
+- Managed Money short percentile
+- Managed Money net percentile
+- 1w change
+- 7w cumulative change
+- `oil_positioning_state`
+- `oil_squeeze_risk`
+
+Purpose:
+
+This layer diagnoses whether crude oil short positioning is crowded, and whether there is short-covering / squeeze candidate risk.
+
+Caveat:
+
+CFTC positioning is diagnostics only. It is not a final oil trading signal.
+
+### 5. Futures Curve Blocker Metadata
+
+Includes:
+
+- `wti_m1_m2_m3_curve`
+- `BLOCKED_VENDOR_NOT_CONFIGURED`
+
+Purpose:
+
+This layer explicitly marks that the current WTI M1/M2/M3 futures curve has not yet been connected to a verified vendor source.
+
+Caveat:
+
+FRED / BLS / EIA / Census / MetalPriceAPI / yfinance cannot replace CME CL futures curve data.
+
+## Oil Macro Summary Adapter
+
+Oil Macro Summary Adapter aggregates the above layers into a structured summary object for future Macro Regime Kernel consumption.
+
+Summary output keys:
+
+- `module_name`
+- `as_of_date`
+- `data_status`
+- `oil_rate_mix`
+- `oil_physical_tightness`
+- `product_inventory_pressure`
+- `crack_spread_proxy_status`
+- `gasoline_crack_research_proxy_trend`
+- `distillate_crack_research_proxy_trend`
+- `crack_321_research_proxy_trend`
+- `oil_positioning_state`
+- `oil_squeeze_risk`
+- `wti_curve_status`
+- `primary_oil_macro_regime`
+- `confidence`
+- `risk_level`
+- `drivers`
+- `warning_flags`
+- `next_watch_items`
+- `data_caveats`
+
+Allowed `primary_oil_macro_regime` labels:
+
+- `PHYSICAL_TIGHT_WITH_RESEARCH_PROXY_SUPPORT`
+- `PHYSICAL_TIGHT_BUT_CURVE_BLOCKED`
+- `RESEARCH_PROXY_POSITIONING_SQUEEZE_CANDIDATE`
+- `DISINFLATION_OR_DEMAND_WEAKNESS`
+- `MIXED_OIL_MACRO_REGIME`
+- `MISSING_OIL_MACRO_DATA`
+
+## What This System Does Not Do
+
+- It does not create `production_score`.
+- It does not create `composite_score`.
+- It does not create `final_trading_signal`.
+- It does not create `buy_signal` or `sell_signal`.
+- It does not treat yfinance as an official / verified source.
+- It does not treat CFTC positioning as a final oil signal.
+- It does not close the WTI M1/M2/M3 futures curve blocker.
+- It does not replace CME / Barchart / Nasdaq verified futures data.
+
+## Main Files
+
+- `macro_research_system/config/domain_input_mappings.yaml`
+- `macro_research_system/config/energy_benchmark_research_sources.yaml`
+- `macro_research_system/config/cftc_positioning_sources.yaml`
+- `macro_research_system/src/systems/common/domain_input_builder.py`
+- `macro_research_system/src/systems/oil_market/fetch_yfinance_energy_research.py`
+- `macro_research_system/src/systems/oil_market/calculate_crack_spread_research.py`
+- `macro_research_system/src/systems/oil_market/calculate_cftc_oil_positioning.py`
+- `macro_research_system/src/systems/oil_market/build_oil_macro_summary.py`
+- `macro_research_system/docs/inflation_pressure_composite.md`
+
+## Testing
+
+Run:
 
 ```bash
-python tw_margin_autocorr_model.py \
-  --start 2012-01-01 \
-  --end 2026-06-03 \
-  --index-yoy-window 252 \
-  --index-qoq-window 63 \
-  --margin-roc-window 63 \
-  --autocorr-window 126 \
-  --threshold-quantile 0.90
+python -m pytest
 ```
 
-其他實用參數：
+Current result:
 
-- `--output-dir output`：調整輸出目錄。
-- `--force-refresh`：忽略既有 CSV 快取，重新抓取所有融資資料。
-- `--max-workers 4`：調整資料並行抓取數。
-- `--request-delay 0.0`：每次融資 API 請求前等待秒數。
+```text
+220 passed
+```
 
-## 手動執行 GitHub Actions
+## Next Planned Phase
 
-到 GitHub repo 頁面後：
+Phase 2F: Macro Regime Kernel input contract
 
-1. 打開 `Actions`。
-2. 選擇 `Run TW Margin Autocorr Model` workflow。
-3. 點選 `Run workflow`。
-4. 選擇 branch 後再次按下 `Run workflow`。
+Purpose:
 
-Workflow 也會在週一到週五台灣時間 18:30 自動執行，更新 `output/` 裡的 CSV、PNG、JSON，並 commit 回 repo。
+Define a standard interface for all domain modules to feed the future Macro Regime Kernel.
 
-## 資料來源
+Expected common fields:
 
-- 加權指數歷史資料：TWSE `MI_5MINS_HIST`
-- 集中市場融資融券餘額：TWSE `MI_MARGN`
+- `module_name`
+- `as_of_date`
+- `data_status`
+- `primary_regime`
+- `secondary_regime`
+- `confidence`
+- `risk_level`
+- `drivers`
+- `warning_flags`
+- `next_watch_items`
+- `data_caveats`
